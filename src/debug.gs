@@ -1,0 +1,176 @@
+/* =========================
+   DEBUG
+========================= */
+function KNB_TASK_diagnoseEnvironment_() {
+  const s = SpreadsheetApp.getActive();
+  const reqGid = Number(KNB_CFG.GID.REQUESTED);
+  const byGid  = s.getSheets().find(x => x.getSheetId() === reqGid);
+  const byName = s.getSheets().find(x => String(x.getName()).trim().toLowerCase() === 'requested');
+  const sh = byGid || byName || s.getActiveSheet();
+
+  const where = (byGid)
+    ? `OK: Using Requested gid ${reqGid} on sheet "${sh.getName()}".`
+    : byName ? `Using sheet named "Requested" (gid ${sh.getSheetId()}).`
+             : `Using ACTIVE sheet "${sh.getName()}" (gid ${sh.getSheetId()}).`;
+
+  const idx = KNB_headerIndex_(sh);
+  const needCols = [
+    KNB_CFG.COL.DEPARTMENT,
+    KNB_CFG.COL.ASSIGNEE,
+    KNB_CFG.COL.CLIENT,
+    KNB_CFG.COL.TASK,
+    KNB_CFG.COL.PRIORITY,
+    KNB_CFG.COL.CREATED,
+    KNB_CFG.COL.STATUS,
+    KNB_CFG.COL.DETAILS
+  ];
+  const missing = needCols.filter(h => !idx[h]);
+  const hdrs = sh.getRange(1,1,1,Math.max(1,sh.getLastColumn())).getDisplayValues()[0];
+
+  const msg = [
+    where,
+    missing.length ? ('MISSING headers: ' + missing.join(', ')) : 'All required headers present ✅',
+    'Detected headers: ' + hdrs.join(' | ')
+  ].join('\n\n');
+
+  Logger.log(msg);
+  SpreadsheetApp.getUi().alert(msg);
+}
+
+function KNB_debugTriggers(){
+  const list = ScriptApp.getProjectTriggers().map(t => (t.getHandlerFunction?t.getHandlerFunction():'?')+' — '+t.getEventType()).join('\n');
+  Logger.log(list||'(no triggers)');
+  SpreadsheetApp.getUi().alert('See Apps Script → View → Logs for trigger list.');
+}
+
+function KNB_cleanupNotesHere(){
+  const sh = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const c = idx['Task Details']; if (!c) return;
+  const last = sh.getLastRow();
+  if (last < 2) return;
+  const rg = sh.getRange(2, c, last-1, 1);
+  const notes = rg.getNotes();
+  let dirty = false;
+  for (let i=0;i<notes.length;i++){
+    if (String(notes[i][0]||'').length){
+      notes[i][0] = ''; dirty = true;
+    }
+  }
+  if (dirty) rg.setNotes(notes);
+  SpreadsheetApp.getActive().toast('Cleared Task Details tooltips on this sheet.', 'Cleanup', 4);
+}
+
+// Ensure Task Details storage columns exist (right after "Task Details") and hide them
+function KNB_TASK_ensureDetailsColumns_Here(sh){
+  if (!sh) return;
+  const idx = KNB_headerIndex_(sh);
+  const td = idx['Task Details'];
+  if (!td) return; // sheet doesn't have Task Details; nothing to do
+
+  // Make/locate "Task Details (HTML)"
+  let htmlCol = idx['Task Details (HTML)'];
+  if (!htmlCol){
+    sh.insertColumnAfter(td);
+    htmlCol = td + 1;
+    sh.getRange(1, htmlCol).setValue('Task Details (HTML)');
+  }
+
+  // Re-read to get fresh indices
+  const idx2 = KNB_headerIndex_(sh);
+
+  // Make/locate "Task Details (Draft)"
+  let draftCol = idx2['Task Details (Draft)'];
+  if (!draftCol){
+    sh.insertColumnAfter(htmlCol);
+    draftCol = htmlCol + 1;
+    sh.getRange(1, draftCol).setValue('Task Details (Draft)');
+  }
+
+  // Hide both storage columns
+  try { sh.hideColumn(sh.getRange(1, htmlCol)); } catch(_){}
+  try { sh.hideColumn(sh.getRange(1, draftCol)); } catch(_){}
+}
+
+// Run across all boards
+function KNB_TASK_ensureDetailsColumns_AllBoards(){
+  const ss = SpreadsheetApp.getActive();
+  (KNB_allGids_() || []).forEach(gid => {
+    const sh = KNB_sheetById_(gid);
+    if (sh) KNB_TASK_ensureDetailsColumns_Here(sh);
+  });
+  SpreadsheetApp.getActive().toast('Ensured + hid Task Details storage on all boards', '📝', 4);
+}
+
+/* =========================
+   DROPDOWNS / VALIDATION
+========================= */
+
+function KNB_applyAssigneeDropdownHere(){
+  const sh  = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const c   = idx[KNB_CFG.COL.ASSIGNEE]; 
+  if (!c) return SpreadsheetApp.getUi().alert('No "Assignee" column found on this sheet.');
+  const rows = Math.max(1, sh.getMaxRows() - 1);
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(KNB_CFG.ASSIGNEES || [], true) // show dropdown
+    .setAllowInvalid(false)
+    .build();
+  sh.getRange(2, c, rows, 1).setDataValidation(rule);
+  SpreadsheetApp.getActive().toast('Assignee dropdown applied.', 'Tasks', 3);
+}
+
+function KNB_applyClientDropdownHere(){
+  const sh  = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const c   = idx[KNB_CFG.COL.CLIENT]; 
+  if (!c) return SpreadsheetApp.getUi().alert('No "Client Name" column found on this sheet.');
+  const values = KNB_CFG.CLIENTS || [];
+  if (!values.length) return SpreadsheetApp.getUi().alert('KNB_CFG.CLIENTS is empty.');
+
+  const rows = Math.max(1, sh.getMaxRows() - 1);
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(values, true)
+    .setAllowInvalid(false)
+    .build();
+
+  sh.getRange(2, c, rows, 1).setDataValidation(rule);
+  SpreadsheetApp.getActive().toast('Client Name dropdown applied.', 'Tasks', 3);
+}
+
+function KNB_applyPriorityDropdownHere(){
+  const sh  = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const c   = idx[KNB_CFG.COL.PRIORITY];
+  if (!c) return SpreadsheetApp.getUi().alert('No "Task Priority" column found on this sheet.');
+  const rows = Math.max(1, sh.getMaxRows() - 1);
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(KNB_CFG.PRIORITIES || [], true)
+    .setAllowInvalid(false)
+    .build();
+  sh.getRange(2, c, rows, 1).setDataValidation(rule);
+  SpreadsheetApp.getActive().toast('Task Priority dropdown applied.', 'Tasks', 3);
+}
+
+// All boards (Assignee + Priority)
+function KNB_applyAssigneeAndPriority_AllBoards(){
+  (KNB_allGids_() || []).forEach(gid => {
+    const sh = KNB_sheetById_(gid); if (!sh) return;
+    const idx = KNB_headerIndex_(sh);
+    const rows = Math.max(1, sh.getMaxRows() - 1);
+
+    // Assignee
+    if (idx[KNB_CFG.COL.ASSIGNEE]) {
+      const r1 = SpreadsheetApp.newDataValidation()
+        .requireValueInList(KNB_CFG.ASSIGNEES || [], true).setAllowInvalid(false).build();
+      sh.getRange(2, idx[KNB_CFG.COL.ASSIGNEE], rows, 1).setDataValidation(r1);
+    }
+    // Priority
+    if (idx[KNB_CFG.COL.PRIORITY]) {
+      const r2 = SpreadsheetApp.newDataValidation()
+        .requireValueInList(KNB_CFG.PRIORITIES || [], true).setAllowInvalid(false).build();
+      sh.getRange(2, idx[KNB_CFG.COL.PRIORITY], rows, 1).setDataValidation(r2);
+    }
+  });
+  SpreadsheetApp.getActive().toast('Assignee & Priority dropdowns applied on all boards.', 'Tasks', 4);
+}

@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <base target="_top" />
+  <style>
+    :root{--fg:#111827;--muted:#64748b;--b:#e5e7eb;--bg:#fff;--bg2:#fafafa;--accent:#111827;--ok:#059669;--err:#b91c1c}
+    body{font:13px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;margin:0;padding:14px;color:var(--fg);background:var(--bg)}
+    h3{margin:0 0 10px}
+    label{display:block;font-weight:600;margin:10px 0 6px}
+    input,select{width:100%;padding:8px;box-sizing:border-box;border:1px solid var(--b);border-radius:8px;background:#fff}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .muted{color:var(--muted);font-size:12px}
+    .error{color:var(--err);font-size:12px;margin-top:10px;display:none;white-space:pre-wrap}
+    .ok{color:var(--ok);font-size:12px;margin-top:10px;display:none}
+    .btn{margin-top:12px;padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .rt{border:1px solid var(--b);border-radius:8px;background:#fff}
+    .rtbar{display:flex;gap:6px;padding:6px;border-bottom:1px solid var(--b);position:sticky;top:0;background:#fff}
+    .rtbar button{border:1px solid var(--b);background:#fff;border-radius:6px;padding:4px 6px;cursor:pointer}
+    .rtbar button:hover{background:#f1f5f9}
+    #content{min-height:160px;padding:10px;outline:none}
+  </style>
+</head>
+<body>
+  <h3>Add New Task</h3>
+  <div class="muted">Required: Department, Assignee, Client Name, Task Name, Task Priority, Creation Date. Start/Due are optional.</div>
+
+  <label>Department
+    <select id="dept">
+      <option value="">— Select Department —</option>
+      <? for (var i=0;i<deptOptions.length;i++) { ?>
+        <option><?= deptOptions[i] ?></option>
+      <? } ?>
+    </select>
+  </label>
+
+  <label for="assignee">Assignee</label>
+  <select id="assignee" name="assignee" required>
+    <option value="" disabled selected>Select assignee…</option>
+    <? for (var a of assignees) { ?>
+      <option value="<?= a ?>"><?= a ?></option>
+    <? } ?>
+  </select>
+  <label for="client">Client Name</label>
+  <select id="client" name="client" required>
+    <option value="" disabled selected>Select client name…</option>
+    <? for (var a of client) { ?>
+      <option value="<?= a ?>"><?= a ?></option>
+    <? } ?>
+  </select>
+  <label>Task Name<input id="task" autocomplete="off"/></label>
+
+  <div class="row">
+    <div>
+      <label>Task Priority
+        <select id="prio">
+          <option>Adhoc Task</option>
+          <option>Low Prio</option>
+          <option selected>Mid Prio</option>
+          <option>High Prio</option>
+        </select>
+      </label>
+    </div>
+    <div><label>Creation Date<input id="created" type="date"/></label></div>
+  </div>
+
+  <div class="row">
+    <div><label>Start Date (optional)<input id="start" type="date"/></label></div>
+    <div><label>Due Date (optional)<input id="due" type="date"/></label></div>
+  </div>
+
+  <label>Task Details</label>
+  <div class="rt">
+    <div class="rtbar">
+      <button type="button" onclick="rt('bold')"><b>B</b></button>
+      <button type="button" onclick="rt('italic')"><i>I</i></button>
+      <button type="button" onclick="rt('insertUnorderedList')">• List</button>
+      <button type="button" onclick="rt('insertOrderedList')">1. List</button>
+      <button type="button" onclick="wrap('<h3>','</h3>')">H3</button>
+      <button type="button" onclick="quote()">❝ Quote</button>
+      <button type="button" onclick="linkit()">🔗 Link</button>
+      <span class="muted" style="margin-left:auto">Rich text saved to NOTE</span>
+    </div>
+    <div id="content" contenteditable="true" spellcheck="true" placeholder="<p>Details…</p>"></div>
+  </div>
+
+  <button class="btn" id="btn" onclick="submitForm()">Add to Requested</button>
+  <div id="err" class="error"></div>
+  <div id="ok" class="ok"></div>
+
+  <script>
+    // Default Creation Date (local)
+    (function(){ try{
+      var d = new Date(Date.now()- (new Date()).getTimezoneOffset()*60000).toISOString().slice(0,10);
+      document.getElementById('created').value = d;
+    }catch(e){} })();
+
+    // Rich-text helpers
+    function rt(cmd){ document.execCommand(cmd,false,null); }
+    function wrap(a,b){
+      var sel=window.getSelection(); if(!sel||!sel.rangeCount) return;
+      var rng=sel.getRangeAt(0), d=document.createElement('div'); d.appendChild(rng.cloneContents());
+      document.execCommand('insertHTML',false, a + d.innerHTML + b);
+    }
+    function quote(){ wrap('<blockquote>','</blockquote>'); }
+    function linkit(){ var url=prompt('Enter URL (https://...)'); if(!url) return; document.execCommand('createLink',false,url); }
+
+    // UI helpers
+    function val(id){ return (document.getElementById(id).value||'').trim(); }
+    function html(){ return document.getElementById('content').innerHTML.trim(); }
+    function setDisabled(dis){ var b=document.getElementById('btn'); b.disabled=!!dis; b.textContent = dis ? 'Adding…' : 'Add to Requested'; }
+    function showErr(msg){ var e=document.getElementById('err'); e.textContent=String(msg||''); e.style.display='block'; document.getElementById('ok').style.display='none'; }
+    function showOk(msg){ var o=document.getElementById('ok'); o.textContent=msg||'Task added.'; o.style.display='block'; document.getElementById('err').style.display='none'; }
+
+    // Submit to server
+    function submitForm(){
+      try{
+        setDisabled(true); showErr('');
+        var payload = {
+          department: val('dept'),
+          assignee:   val('assignee'),
+          client:     val('client'),
+          task:       val('task'),
+          prio:       val('prio'),
+          created:    val('created') || new Date().toISOString().slice(0,10),
+          start:      val('start'),
+          due:        val('due'),
+          html:       html()
+        };
+
+        var miss = []; ['department','assignee','client','task','prio','created'].forEach(k=>{ if(!payload[k]) miss.push(k); });
+        if(miss.length){ showErr('Fill required: '+miss.join(', ')); setDisabled(false); return; }
+
+        if (payload.html && payload.html.length > 48000){
+          showErr('Task Details is too large ('+payload.html.length+' chars). Keep it under 48,000.'); setDisabled(false); return;
+        }
+
+        google.script.run
+          .withSuccessHandler(function(msg){ showOk(msg||'Task added.'); setTimeout(function(){ google.script.host.close(); }, 900); })
+          .withFailureHandler(function(e){ var m=(e&&e.message)?e.message:String(e); showErr('Server error: '+m); setDisabled(false); })
+          .KNB_TASK_add(payload);
+
+      }catch(err){ showErr('Client error: ' + (err && err.message ? err.message : String(err))); setDisabled(false); }
+    }
+  </script>
+</body>
+</html>

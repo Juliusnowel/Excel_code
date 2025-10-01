@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <base target="_top" />
+    <style>
+      body{font:14px/1.5 Arial, sans-serif; padding:14px; color:#111}
+      .row{display:flex; gap:10px; align-items:center}
+      .muted{color:#666}
+      label{display:block; margin-top:10px; font-weight:600}
+      input,textarea,select{width:100%; box-sizing:border-box; padding:6px}
+      button{padding:8px 12px; border:0; border-radius:6px; cursor:pointer}
+      .primary{background:#111827; color:#fff}
+      .ghost{background:#e5e7eb; color:#111}
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#111827" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.91V4a1 1 0 0 0-2 0v1.09A6 6 0 0 0 6 11v5l-2 2v1h16v-1l-2-2Z"/>
+      </svg>
+      <div><strong>Discord Notifier</strong><div class="muted">Uses the selected row</div></div>
+    </div>
+
+    <div id="info" class="muted" style="margin:8px 0">Loading row…</div>
+
+    <label>Status to send
+      <select id="st">
+        <option>Requested</option>
+        <option>For Revision</option>
+      </select>
+    </label>
+
+    <label>Note
+      <textarea id="note" rows="3">Please check the task details and let me know if you have any questions.</textarea>
+    </label>
+
+    <div style="margin-top:12px; display:flex; gap:10px">
+      <button class="primary" onclick="send()">Send</button>
+      <button class="ghost" onclick="google.script.host.close()">Close</button>
+    </div>
+
+    <script>
+      // Populate panel with the selected row’s context
+      google.script.run
+        .withSuccessHandler(function(x){
+          if(!x){
+            document.getElementById('info').textContent =
+              'Select any cell in a task row (not the header).';
+            return;
+          }
+          document.getElementById('info').textContent =
+            'Assignee: ' + x.assignee + ' | Row: ' + x.row + ' • Task: ' + x.taskName;
+          if (['Requested','For Revision'].indexOf(x.status) !== -1)
+            document.getElementById('st').value = x.status;
+          document.getElementById('note').value =
+            x.defaultNote || document.getElementById('note').value;
+        })
+        .KNB_NTF_getSelectedRowInfo();
+
+      // Submit
+      function send(){
+        var st = document.getElementById('st').value || 'Requested';
+        var note = document.getElementById('note').value || '';
+        google.script.run
+          .withSuccessHandler(function(){ google.script.host.close(); })
+          .KNB_NTF_manualSendSelected(st, note);
+      }
+    </script>
+  </body>
+</html>

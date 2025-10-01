@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <base target="_top" />
+  <style>
+    body{font:13px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial;margin:0}
+    header{padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#f8fafc}
+    .meta{display:flex;gap:16px;flex-wrap:wrap;color:#475569;font-size:12px}
+    .title{font-weight:700;font-size:14px;margin-bottom:6px}
+    .toolbar{display:flex;gap:6px;padding:10px;border-bottom:1px solid #e5e7eb;position:sticky;top:0;background:#fff;z-index:2}
+    .btn{border:1px solid #e5e7eb;background:#fff;border-radius:8px;padding:6px 8px;cursor:pointer}
+    .btn:hover{background:#f1f5f9}
+    #editor{padding:14px 16px;min-height:320px;outline:none}
+    .actions{display:flex;gap:10px;padding:12px 16px;border-top:1px solid #e5e7eb;background:#fafafa;position:sticky;bottom:0}
+    .save{background:#111827;color:#fff}
+    .save:hover{filter:brightness(.9)}
+    .danger{background:#fee2e2}
+    .msg{color:#059669;font-size:12px;padding:6px 16px;display:none}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">Task Details — HTML Editor</div>
+    <div class="meta">
+      <div><b>Row:</b> <?= row ?></div>
+      <div><b>Task:</b> <?= tName || '(untitled)' ?></div>
+      <div><b>Assignee:</b> <?= ass || '—' ?></div>
+      <div><b>Client:</b> <?= cl || '—' ?></div>
+      <div><b>Status:</b> <?= st || '—' ?></div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn" onclick="cmd('bold')"><b>B</b></button>
+    <button class="btn" onclick="cmd('italic')"><i>I</i></button>
+    <button class="btn" onclick="cmd('insertUnorderedList')">• List</button>
+    <button class="btn" onclick="cmd('insertOrderedList')">1. List</button>
+    <button class="btn" onclick="linkit()">🔗 Link</button>
+    <button class="btn" onclick="wrap('<h3>','</h3>')">H3</button>
+    <button class="btn" onclick="wrap('<blockquote>','</blockquote>')">❝ Quote</button>
+  </div>
+
+  <div id="editor" contenteditable="true"><?= html ?></div>
+  <div class="msg" id="msg"></div>
+
+  <div class="actions">
+    <button class="btn save"   onclick="saveFinal()">Save</button>
+    <button class="btn danger" onclick="clearAll()">Delete Content</button>
+    <button class="btn"        onclick="google.script.host.close()">Close</button>
+  </div>
+
+  <script>
+    function cmd(x){ document.execCommand(x,false,null); }
+    function wrap(a,b){
+      const sel=window.getSelection(); if(!sel||!sel.rangeCount) return;
+      const rng=sel.getRangeAt(0); const d=document.createElement('div'); d.appendChild(rng.cloneContents());
+      document.execCommand('insertHTML', false, a + d.innerHTML + b);
+    }
+    function linkit(){
+      const url=prompt('Enter URL (https://...)'); if(!url) return;
+      document.execCommand('createLink',false,url);
+    }
+    function toast(m,ok=true){
+      const el=document.getElementById('msg'); el.style.display='block';
+      el.style.color = ok ? '#059669' : '#b91c1c'; el.textContent=m;
+      setTimeout(()=>el.style.display='none',1800);
+    }
+    function htmlVal(){ return document.getElementById('editor').innerHTML; }
+
+    function saveFinal(){
+      google.script.run
+        .withSuccessHandler(()=>toast('Saved.'))
+        .withFailureHandler(e=>toast(e && e.message ? e.message : String(e), false))
+        .KNB_MTE_save(<?= row ?>, htmlVal());
+    }
+    function clearAll(){
+      if(!confirm('Clear all content?')) return;
+      google.script.run
+        .withSuccessHandler(()=>{ document.getElementById('editor').innerHTML=''; toast('Cleared.'); })
+        .withFailureHandler(e=>toast(e && e.message ? e.message : String(e), false))
+        .KNB_MTE_save(<?= row ?>, '');
+    }
+  </script>
+</body>
+</html>
