@@ -86,10 +86,10 @@ const KNB_CFG = {
     'Allinclusive': '#3FA6FF',
     'Creceri':      '#1C7CFF',
     'Wix Media':    '#FFB300',
-    'OPO':          '#8E24AA',
     'Ilegiants':    '#E53935',
     'Yzenshun':     '#757575',
-    'Windows Live': '#2ECC71'
+    'Windows Live': '#2ECC71',
+    'Vite SEO':    '#8E24AA'
   },
   HEADER_BG: '#0B1221',
   HEADER_FG: '#FFFFFF',
@@ -97,7 +97,7 @@ const KNB_CFG = {
   DEPARTMENTS: ['SEO Department','QA Department','Dev Department','Design Department'],
   PRIORITIES: ['Adhoc Task','Low Prio','Mid Prio','High Prio'],
   CLIENTS: [
-    'Allinclusive','Creceri','Wix Media','OPO','Ilegiants','Yzenshun','Windows Live'
+    'Allinclusive','Creceri','Wix Media','Ilegiants','Yzenshun','Windows Live','Vite SEO'
   ]
 };
 
