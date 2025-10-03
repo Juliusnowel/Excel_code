@@ -54,6 +54,15 @@ function KNB_moverOnEdit_(e){
       }
     }
 
+    const cEnd = map[KNB_CFG.COL.END] || 0;
+    if (newStatus === 'Done' && cEnd){
+      const cell = sh.getRange(row, cEnd);
+      if (!cell.getValue()){
+        cell.setValue(new Date());
+        try { cell.setNumberFormat('yyyy-mm-dd'); } catch(_){}
+      }
+    }
+
     // Gate checks while spinner is visible
     if (!KNB_gateAllows_(sh, row, map, newStatus)){
       KNB_suppressEdits_(750);
@@ -112,7 +121,7 @@ function KNB_gateAllows_(sh, row, idx, newStatus){
     const issues = [];
 
     const pr = prC ? String(sh.getRange(row, prC).getDisplayValue()||'').trim() : '';
-    if (!['Mid Prio','High Prio'].includes(pr)) issues.push('Task Priority must be Mid/High');
+    if (!['Adhoc Task','Low Prio','Mid Prio','High Prio'].includes(pr)) issues.push('Invalid Task Priority Value');
 
     const dl = dlC ? String(sh.getRange(row, dlC).getDisplayValue()||'').trim() : '';
     if (!dl) issues.push('Deliverable required');
@@ -210,18 +219,22 @@ function KNB_moveRow_(fromSheet, row, destGid){
 
     // Copy the entire row with formats/notes/rich text
     const destRow = Math.max(2, toSheet.getLastRow() + 1);
-    fromSheet.getRange(row, 1, 1, srcCols)
-      .copyTo(toSheet.getRange(destRow, 1, 1, srcCols), { contentsOnly:false });
+    KNB_withRetry_(() =>
+      fromSheet.getRange(row, 1, 1, srcCols)
+        .copyTo(toSheet.getRange(destRow, 1, 1, srcCols), { contentsOnly:false }),
+      4, 'copyTo row');
 
     // Preserve row height, then remove source
-    try { toSheet.setRowHeight(destRow, fromSheet.getRowHeight(row)); } catch(_){}
-    fromSheet.deleteRow(row);
+    try { KNB_withRetry_(() => toSheet.setRowHeight(destRow, fromSheet.getRowHeight(row)), 3, 'setRowHeight'); } catch(_){}
+    // Remove source row
+    KNB_withRetry_(() => fromSheet.deleteRow(row), 4, 'deleteRow');
 
     // Put user on the moved row
     try {
-      SpreadsheetApp.getActive()
-        .setActiveSheet(toSheet)
-        .setActiveSelection(toSheet.getRange(destRow, 1));
+      KNB_withRetry_(() => {
+        SpreadsheetApp.getActive().setActiveSheet(toSheet);
+        SpreadsheetApp.getActive().setActiveSelection(toSheet.getRange(destRow, 1));
+      }, 3, 'activate moved row');
     } catch(_){}
 
     // Re-hide storage columns on destination in case copy made them visible
@@ -236,4 +249,29 @@ function KNB_jumpToLastRowHere(){
   const r = Math.max(2, sh.getLastRow());
   SpreadsheetApp.getActive().setActiveSelection(sh.getRange(r, 1));
   SpreadsheetApp.getActive().toast('Jumped to row '+r, 'Nav', 3);
+}
+
+function KNB_backfillEndDateForDoneHere(){
+  const sh  = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const cSts = idx[KNB_CFG.COL.STATUS], cEnd = idx[KNB_CFG.COL.END];
+  if (!cSts || !cEnd) return;
+
+  const last = Math.max(2, sh.getLastRow());
+  const sts  = sh.getRange(2, cSts, last-1, 1).getDisplayValues();
+  const ends = sh.getRange(2, cEnd, last-1, 1).getValues();
+
+  const toWrite = [];
+  for (let i=0;i<sts.length;i++){
+    if (String(sts[i][0]||'').trim()==='Done' && !ends[i][0]){
+      toWrite.push([new Date()]);
+    } else {
+      toWrite.push([ends[i][0]]);
+    }
+  }
+  if (toWrite.length){
+    sh.getRange(2, cEnd, toWrite.length, 1).setValues(toWrite);
+    try { sh.getRange(2, cEnd, toWrite.length, 1).setNumberFormat('yyyy-mm-dd'); } catch(_){}
+  }
+  SpreadsheetApp.getActive().toast('Backfilled End Date for Done rows.', 'Done', 3);
 }

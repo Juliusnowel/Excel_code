@@ -210,3 +210,221 @@ function KNB_headerIndex_CACHED_(sh){
   return m;
 }
 
+function KNB_hideRTEStorage_AllBoards(){
+  const pairs = [
+    ['Task Details (HTML)', 'Task Details (Draft)'],
+    ['Revision Notes (HTML)', 'Revision Notes (Draft)']
+  ];
+  (KNB_allGids_() || []).forEach(gid => {
+    const sh = KNB_sheetById_(gid);
+    if (!sh) return;
+    const idx = KNB_headerIndex_(sh);
+    pairs.forEach(([h1,h2])=>{
+      if (idx[h1]) try { sh.hideColumn(sh.getRange(1, idx[h1])); } catch(_){}
+      if (idx[h2]) try { sh.hideColumn(sh.getRange(1, idx[h2])); } catch(_){}
+    });
+  });
+  SpreadsheetApp.getActive().toast('Hidden RTE storage columns for Details & Revision Notes.', '🧩', 4);
+}
+
+function KNB_ensureDayCountHere_(){
+  const sh  = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const cDay = idx[KNB_CFG.COL.DAYCOUNT];
+  if (!cDay) return;
+
+  // Only set if L2 is empty or not an ARRAYFORMULA
+  const cell = sh.getRange(2, cDay);
+  const f0 = cell.getFormula();
+  const needs = !/^=ARRAYFORMULA\(/i.test(f0 || '');
+  if (!needs) return;
+
+  const f = KNB_dayCountFormulaForSheet_(sh);
+  cell.setFormula(f);
+
+  // Reapply heatmap on this column (same rules you already had)
+  const A1 = n => KNB_colToA1_(n);
+  const cCre = idx[KNB_CFG.COL.CREATED];
+  const cSta = idx[KNB_CFG.COL.START];
+  const cDue = idx[KNB_CFG.COL.DUE];
+  const cEnd = idx[KNB_CFG.COL.END];
+  const cSts = idx[KNB_CFG.COL.STATUS];
+
+  const range = sh.getRange(2, cDay, sh.getMaxRows()-1, 1);
+  const keep = sh.getConditionalFormatRules()
+    .filter(r => !r.getRanges().some(rg => rg.getColumn()==cDay && rg.getNumColumns()==1));
+
+  const red = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([range])
+    .whenFormulaSatisfied('=AND($'+A1(cSts)+'2<>"Done",$'+A1(cEnd)+'2="",$'+A1(cDue)+'2<>"",'+A1(cDay)+'2<=1)')
+    .setBackground('#ffcccc').build();
+
+  const yellow = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([range])
+    .whenFormulaSatisfied('=AND($'+A1(cSts)+'2<>"Done",$'+A1(cEnd)+'2="",$'+A1(cDue)+'2<>"",'+A1(cDay)+'2>=2,'+A1(cDay)+'2<=3)')
+    .setBackground('#fff2cc').build();
+
+  const green = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([range])
+    .whenFormulaSatisfied('=AND($'+A1(cSts)+'2<>"Done",$'+A1(cEnd)+'2="",$'+A1(cDue)+'2<>"",'+A1(cDay)+'2>=4)')
+    .setBackground('#d9ead3').build();
+
+  sh.setConditionalFormatRules([...keep, red, yellow, green]);
+}
+
+
+/** =========================
+    DAY COUNT — APPLY / RESET
+========================= **/
+
+/** Build the Day Count ARRAYFORMULA string for a given sheet. */
+function KNB_dayCountFormulaForSheet_(sh){
+  const idx = KNB_headerIndex_(sh);
+  const get = h => idx[h] || 0;
+
+  const cDay = get(KNB_CFG.COL.DAYCOUNT);
+  const cCre = get(KNB_CFG.COL.CREATED);
+  const cSta = get(KNB_CFG.COL.START);
+  const cDue = get(KNB_CFG.COL.DUE);
+  const cEnd = get(KNB_CFG.COL.END);
+
+  if (!cDay || !cDue || !cEnd) {
+    throw new Error('Missing required headers (Day Count, Due Date, End Date).');
+  }
+
+  const A1 = n => KNB_colToA1_(n);
+
+  // Days left = Due - (EndDate if set else TODAY())
+  // Only show when Due exists and (Start OR Creation) exists.
+  // NOTE: No ROW(A:A) wrapper, so it’s safe to live in L2.
+  return (
+    '=ARRAYFORMULA(' +
+      'IF(LEN($' + A1(cDue) + '2:$' + A1(cDue) + ')=0,,' +
+        'IF( (LEN($' + A1(cSta) + '2:$' + A1(cSta) + ')>0) + (LEN($' + A1(cCre) + '2:$' + A1(cCre) + ')>0),' +
+            '$' + A1(cDue) + '2:$' + A1(cDue) + ' - IF(LEN($' + A1(cEnd) + '2:$' + A1(cEnd) + ')>0,$' + A1(cEnd) + '2:$' + A1(cEnd) + ',TODAY()),' +
+            '' +
+        ')' +
+      ')' +
+    ')'
+  );
+}
+
+
+function KNB_withRetry_(fn, tries, label){
+  var attempts = Math.max(1, tries || 3);
+  var lastErr;
+  for (var i = 0; i < attempts; i++){
+    try { return fn(); }
+    catch (e){
+      lastErr = e;
+      // backoff 150ms, 400ms, 800ms…
+      Utilities.sleep(i === 0 ? 150 : Math.min(2000, 150 * Math.pow(2, i)));
+    }
+  }
+  throw new Error((label ? label + ': ' : '') + (lastErr && lastErr.message || lastErr));
+}
+
+/** Apply Day Count formula + heatmap on a single sheet. 
+ *  opts.force = true → clear any blocking values in the Day Count column and re-apply.
+ */
+function KNB_applyDayCountOnSheet_(sh, opts) {
+  const o = opts || {};
+  const idx  = KNB_headerIndex_(sh);
+  const cDay = idx[KNB_CFG.COL.DAYCOUNT];   // target column
+  if (!cDay) throw new Error('Missing header "' + KNB_CFG.COL.DAYCOUNT + '".');
+
+  const A1   = n => KNB_colToA1_(n);
+  const cCre = idx[KNB_CFG.COL.CREATED];
+  const cSta = idx[KNB_CFG.COL.START];
+  const cDue = idx[KNB_CFG.COL.DUE];
+  const cEnd = idx[KNB_CFG.COL.END];
+  const cSts = idx[KNB_CFG.COL.STATUS];
+
+  // Optionally clear the column (below header) to remove REF! blockers
+  if (o.force) {
+    const maxR = Math.max(2, sh.getMaxRows());
+    sh.getRange(2, cDay, maxR - 1, 1).clearContent(); // keep formatting
+  }
+
+  // Set the ARRAYFORMULA into L2 (or whatever Day Count is)
+  const cell = sh.getRange(2, cDay);
+  const fml  = KNB_dayCountFormulaForSheet_(sh);
+  KNB_withRetry_(() => cell.setFormula(fml), 4, 'setFormula Day Count');
+
+  // Ensure the Day Count column is NUMBER-formatted (avoids showing dates like 1900-02-..)
+  const numRange = sh.getRange(2, cDay, sh.getMaxRows() - 1, 1);
+  KNB_withRetry_(() => numRange.setNumberFormat('0'), 3, 'setNumberFormat Day Count');
+
+  // Reapply conditional formatting for the Day Count column (replace any old rules on that column)
+  const rules = sh.getConditionalFormatRules();
+  const keep  = rules.filter(r => !r.getRanges().some(rg => rg.getColumn() === cDay && rg.getNumColumns() === 1));
+
+  const range = sh.getRange(2, cDay, sh.getMaxRows() - 1, 1);
+
+  const red = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([range])
+    .whenFormulaSatisfied(
+      '=AND($' + A1(cSts) + '2<>"Done",$' + A1(cEnd) + '2="",$' + A1(cDue) + '2<>"",' + A1(cDay) + '2<=1)'
+    )
+    .setBackground('#ffcccc')
+    .build();
+
+  const yellow = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([range])
+    .whenFormulaSatisfied(
+      '=AND($' + A1(cSts) + '2<>"Done",$' + A1(cEnd) + '2="",$' + A1(cDue) + '2<>"",' + A1(cDay) + '2>=2,' + A1(cDay) + '2<=3)'
+    )
+    .setBackground('#fff2cc')
+    .build();
+
+  const green = SpreadsheetApp.newConditionalFormatRule()
+    .setRanges([range])
+    .whenFormulaSatisfied(
+      '=AND($' + A1(cSts) + '2<>"Done",$' + A1(cEnd) + '2="",$' + A1(cDue) + '2<>"",' + A1(cDay) + '2>=4)'
+    )
+    .setBackground('#d9ead3')
+    .build();
+
+  KNB_withRetry_(() => sh.setConditionalFormatRules([...keep, red, yellow, green]), 4, 'setConditionalFormatRules Day Count');
+}
+
+/** Public: apply Day Count on the ACTIVE sheet (non-destructive; won't clear blockers). */
+function KNB_applyDayCountHere(){
+  const sh = SpreadsheetApp.getActiveSheet();
+  KNB_applyDayCountOnSheet_(sh, { force:false });
+  SpreadsheetApp.getActive().toast('Day Count applied on "'+ sh.getName() +'".', 'SLA', 3);
+}
+
+/** Public: RESET Day Count on ACTIVE sheet (clears column values below header, re-adds formula + heatmap). */
+function KNB_resetDayCountHere(){
+  const sh = SpreadsheetApp.getActiveSheet();
+  KNB_applyDayCountOnSheet_(sh, { force:true });
+  SpreadsheetApp.getActive().toast('Day Count reset on "'+ sh.getName() +'".', 'SLA', 3);
+}
+
+/** Public: apply Day Count on ALL boards (non-destructive). */
+function KNB_applyDayCount_AllBoards(){
+  const ss = SpreadsheetApp.getActive();
+  (KNB_allGids_() || []).forEach(gid => {
+    const sh = KNB_sheetById_(gid); if (!sh) return;
+    try { KNB_applyDayCountOnSheet_(sh, { force:false }); } catch(e){ /* ignore per-sheet */ }
+  });
+  ss.toast('Day Count applied on all boards.', 'SLA', 4);
+}
+
+/** Public: RESET Day Count on ALL boards (clears Day Count columns and re-applies). */
+function KNB_resetDayCount_AllBoards(){
+  const ss = SpreadsheetApp.getActive();
+  (KNB_allGids_() || []).forEach(gid => {
+    const sh = KNB_sheetById_(gid); if (!sh) return;
+    try { KNB_applyDayCountOnSheet_(sh, { force:true }); } catch(e){ /* ignore per-sheet */ }
+  });
+  ss.toast('Day Count reset on all boards.', 'SLA', 4);
+}
+
+/** Backward-compat: keep your auto-ensure on open, but safe (no force). */
+function KNB_ensureDayCountHere_(){
+  try { KNB_applyDayCountHere(); } catch(_){}
+}
+
+

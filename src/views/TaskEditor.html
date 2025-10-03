@@ -21,7 +21,7 @@
 </head>
 <body>
   <header>
-    <div class="title">Task Details — HTML Editor</div>
+    <div class="title"><?!= dialogTitle ?></div>
     <div class="meta">
       <div><b>Row:</b> <?= row ?></div>
       <div><b>Task:</b> <?= tName || '(untitled)' ?></div>
@@ -72,14 +72,14 @@
       google.script.run
         .withSuccessHandler(()=>toast('Saved.'))
         .withFailureHandler(e=>toast(e && e.message ? e.message : String(e), false))
-        .KNB_MTE_save(<?= row ?>, htmlVal());
+        .KNB_RTE_save(<?= row ?>, htmlVal(), '<?= fieldKey ?>');
     }
     function clearAll(){
       if(!confirm('Clear all content?')) return;
       google.script.run
         .withSuccessHandler(()=>{ document.getElementById('editor').innerHTML=''; toast('Cleared.'); })
         .withFailureHandler(e=>toast(e && e.message ? e.message : String(e), false))
-        .KNB_MTE_save(<?= row ?>, '');
+        .KNB_RTE_save(<?= row ?>, '', '<?= fieldKey ?>');
     }
   </script>
   <script>
