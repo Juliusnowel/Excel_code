@@ -13,6 +13,7 @@ const KNB_CFG = {
   COL: {
     ROWID:       'Row ID',
     DEPARTMENT:  'Department',
+    OWNER:       'Owner',      
     ASSIGNEE:    'Assignee',
     CLIENT:      'Client Name',
     TASK:        'Task Name',
@@ -43,6 +44,7 @@ const KNB_CFG = {
   // Column shading (by header text)
   COLUMN_COLORS: {
     'Department':    '#d0eafc',
+    'Owner':      '#d0eafc',
     'Task Name':     '#dfd3fa',
     'Creation Date': '#fcebd6',
     'Deliverable':   '#f5c5d7',   
@@ -79,7 +81,8 @@ const KNB_CFG = {
     'Adhoc Task': '#7EF0FF',
     'Low Prio':   '#7EFDA4',
     'Mid Prio':   '#FFB300',
-    'High Prio':  '#FF3535'
+    'High Prio':  '#FF3535',
+    'Urgent':     '#FF3535'
   },
   // Status color chips (used only by the optional styling helper)
   CLIENT_COLORS: {
@@ -95,7 +98,7 @@ const KNB_CFG = {
   HEADER_FG: '#FFFFFF',
   // Dropdown choices (used by dialog + optional sheet validation helper)
   DEPARTMENTS: ['SEO Department','QA Department','Dev Department','Design Department'],
-  PRIORITIES: ['Adhoc Task','Low Prio','Mid Prio','High Prio'],
+  PRIORITIES: ['Adhoc Task','Low Prio','Mid Prio','High Prio', 'Urgent'],
   CLIENTS: [
     'Allinclusive','Creceri','Wix Media','Ilegiants','Yzenshun','Windows Live','Vite SEO'
   ]
@@ -134,6 +137,6 @@ const KNB_PVX_GROUPS = {
 
 // columns to export to private Overview
 const KNB_PVX_COLS = [
-  'Status','Task Priority','Client Name','Task Name','Task Details',
+  'Status','Task Priority','Client Name','Task Name','Task Details','Owner',
   'Assignee','Start Date','Due Date','End Date','Day Count'
 ];

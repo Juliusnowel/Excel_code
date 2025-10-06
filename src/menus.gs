@@ -83,7 +83,9 @@ function onOpen(){
         .addItem('Reset Day Count (This Sheet)', 'KNB_resetDayCountHere')
         .addItem('Reset Day Count (All Boards)', 'KNB_resetDayCount_AllBoards')
         .addItem('Back Fill End Date', 'KNB_backfillEndDateForDoneHere')
-
+        .addItem('Install Owner Column (All Boards)', 'KNB_installOwnerColumnAll')
+        .addItem('Apply Owner Dropdown (All Boards)', 'KNB_applyOwnerDropdown_AllBoards')
+        .addItem('Refresh Priorities (All Boards)', 'KNB_refreshPriority_AllBoards')
       )
     .addToUi();
 }

@@ -121,7 +121,7 @@ function KNB_gateAllows_(sh, row, idx, newStatus){
     const issues = [];
 
     const pr = prC ? String(sh.getRange(row, prC).getDisplayValue()||'').trim() : '';
-    if (!['Adhoc Task','Low Prio','Mid Prio','High Prio'].includes(pr)) issues.push('Invalid Task Priority Value');
+    if (!['Adhoc Task','Low Prio','Mid Prio','High Prio', 'Urgent'].includes(pr)) issues.push('Invalid Task Priority Value');
 
     const dl = dlC ? String(sh.getRange(row, dlC).getDisplayValue()||'').trim() : '';
     if (!dl) issues.push('Deliverable required');

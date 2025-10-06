@@ -35,6 +35,15 @@
     </select>
   </label>
 
+  <!-- NEW: Owner (same list as Assignee) -->
+  <label for="owner">Owner</label>
+  <select id="owner" name="owner">
+    <option value="" selected disabled>Select owner…</option>
+    <? for (var a of owners) { ?>
+      <option value="<?= a ?>"><?= a ?></option>
+    <? } ?>
+  </select>
+
   <label for="assignee">Assignee</label>
   <select id="assignee" name="assignee" required>
     <option value="" disabled selected>Select assignee…</option>
@@ -59,6 +68,7 @@
           <option>Low Prio</option>
           <option selected>Mid Prio</option>
           <option>High Prio</option>
+          <option>Urgent</option>
         </select>
       </label>
     </div>
@@ -119,6 +129,7 @@
         setDisabled(true); showErr('');
         var payload = {
           department: val('dept'),
+          owner:      val('owner'), 
           assignee:   val('assignee'),
           client:     val('client'),
           task:       val('task'),

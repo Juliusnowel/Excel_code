@@ -6,6 +6,7 @@
 function KNB_TASK_openNewTaskForm(){
   const tpl = HtmlService.createTemplateFromFile('views/NewTask');
   tpl.deptOptions = KNB_CFG.DEPARTMENTS || [];
+  tpl.owners     = KNB_CFG.ASSIGNEES   || [];
   tpl.assignees  = KNB_CFG.ASSIGNEES   || [];   
   tpl.client  = KNB_CFG.CLIENTS   || [];   
   SpreadsheetApp.getUi().showModalDialog(
@@ -48,6 +49,19 @@ function KNB_TASK_add_(p){
     );
   }
 
+  // --- Make sure Priority DV includes the latest list (e.g., "Urgent") ---
+  (function ensurePriorityDV_(){
+    const cPrio = idx[KNB_CFG.COL.PRIORITY] || 0;
+    if (!cPrio) return;
+    const rows = Math.max(1, sh.getMaxRows() - 1);
+    const dv = SpreadsheetApp.newDataValidation()
+      .requireValueInList(KNB_CFG.PRIORITIES || [], true)
+      .setAllowInvalid(false)
+      .setHelpText('Choose a Priority')
+      .build();
+    sh.getRange(2, cPrio, rows, 1).setDataValidation(dv);
+  })();
+
   // Robust date parsing
   function parseDate_(s){
     if(!s) return null;
@@ -83,10 +97,35 @@ function KNB_TASK_add_(p){
   const set = (name, val)=>{ const c=idx[name]; if(c) sh.getRange(row,c).setValue(val); };
 
   set(KNB_CFG.COL.DEPARTMENT, p.department);
+  set(KNB_CFG.COL.OWNER,      p.owner);
   set(KNB_CFG.COL.ASSIGNEE,   p.assignee);
   set(KNB_CFG.COL.CLIENT,     p.client);
   set(KNB_CFG.COL.TASK,       p.task);
-  set(KNB_CFG.COL.PRIORITY,   p.prio || 'Mid Prio');
+
+  // Priority: write with a small retry if DV complained
+  (function safeSetPriority_(){
+    const cPrio = idx[KNB_CFG.COL.PRIORITY] || 0;
+    if (!cPrio) return;
+    const value = p.prio || 'Mid Prio';
+    try {
+      sh.getRange(row, cPrio).setValue(value);
+    } catch (e){
+      if (String(e).toLowerCase().includes('data validation')) {
+        // Re-ensure DV and retry once
+        const rows = Math.max(1, sh.getMaxRows() - 1);
+        const dv = SpreadsheetApp.newDataValidation()
+          .requireValueInList(KNB_CFG.PRIORITIES || [], true)
+          .setAllowInvalid(false)
+          .setHelpText('Choose a Priority')
+          .build();
+        sh.getRange(2, cPrio, rows, 1).setDataValidation(dv);
+        sh.getRange(row, cPrio).setValue(value);
+      } else {
+        throw e;
+      }
+    }
+  })();
+
   set(KNB_CFG.COL.CREATED,    created);
   if (idx[KNB_CFG.COL.START] && start) set(KNB_CFG.COL.START, start);  // optional
   if (idx[KNB_CFG.COL.DUE]   && due)   set(KNB_CFG.COL.DUE,   due);    // optional
@@ -111,14 +150,15 @@ function KNB_TASK_add_(p){
     throw new Error(`Task Details too large (${html.length} chars). Keep it under ${NOTE_LIMIT.toLocaleString()} characters.`);
   }
 
-  sh.getRange(row, hCol).setValue(html);      
+  sh.getRange(row, hCol).setValue(html);
   const cell = sh.getRange(row, dCol);
-  cell.setNote('');                          
+  cell.setNote('');
   cell.setValue(html ? '📝' : '');
 
   try { KNB_touchStyleHere_(); } catch(_) {}
 
   try {
+    KNB_applyOwnerDropdownHere();
     KNB_applyAssigneeDropdownHere();
     KNB_applyPriorityDropdownHere();
     KNB_applyClientDropdownHere();
@@ -127,6 +167,7 @@ function KNB_TASK_add_(p){
   SpreadsheetApp.getActive().toast('Task added (Status blank).', 'Tasks', 4);
   return 'Task added to "'+sh.getName()+'" (row '+row+') — Status left blank.';
 }
+
 
 /* =========================
    Hidden storage columns helper

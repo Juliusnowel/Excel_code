@@ -42,6 +42,22 @@ function KNB_cfMatch_(a1, literal) {
   return `=LOWER(REGEXREPLACE(SUBSTITUTE(TRIM($${a1}2),CHAR(160)," "), "\\s+", " "))="${safe}"`;
 }
 
+function KNB_applyOwnerDropdownHere(){
+  const sh = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const col = idx[KNB_CFG.COL.OWNER];
+  if (!col) return SpreadsheetApp.getUi().alert('Column "Owner" not found.');
+  const lastRow = Math.max(2, sh.getLastRow());
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(KNB_CFG.ASSIGNEES, true)
+    .setAllowInvalid(false)
+    .setHelpText('Choose an Owner')
+    .build();
+  sh.getRange(2, col, lastRow-1, 1).setDataValidation(rule);
+  SpreadsheetApp.getActive().toast('Owner dropdown applied.', 'Tasks', 3);
+}
+
+
 function KNB_ensureStyleHere(){
   const sh = SpreadsheetApp.getActiveSheet();
 
@@ -87,6 +103,22 @@ function KNB_ensureStyleHere(){
   if (cAss){
     const a1 = KNB_colToA1_(cAss);
     const r  = sh.getRange(2, cAss, rows, 1);
+    Object.entries(KNB_CFG.ASSIGNEE_COLORS || {}).forEach(([val,bg])=>{
+      rules.push(
+        SpreadsheetApp.newConditionalFormatRule()
+          .whenFormulaSatisfied(KNB_cfMatch_(a1, val))
+          .setBackground(bg)
+          .setRanges([r])
+          .build()
+      );
+    });
+  }
+
+  // NEW: Owner (reuse assignee chips)
+  const cOwner = idx[KNB_CFG.COL.OWNER];
+  if (cOwner){
+    const a1 = KNB_colToA1_(cOwner);
+    const r  = sh.getRange(2, cOwner, rows, 1);
     Object.entries(KNB_CFG.ASSIGNEE_COLORS || {}).forEach(([val,bg])=>{
       rules.push(
         SpreadsheetApp.newConditionalFormatRule()
@@ -145,7 +177,7 @@ function KNB_ensureStyleHere(){
 function KNB_normalizeTextColumnsHere(){
   const sh  = SpreadsheetApp.getActiveSheet();
   const idx = KNB_headerIndex_(sh);
-  const cols = [idx[KNB_CFG.COL.ASSIGNEE], idx[KNB_CFG.COL.CLIENT], idx[KNB_CFG.COL.PRIORITY]].filter(Boolean);
+  const cols = [idx[KNB_CFG.COL.OWNER], idx[KNB_CFG.COL.ASSIGNEE], idx[KNB_CFG.COL.CLIENT], idx[KNB_CFG.COL.PRIORITY]].filter(Boolean);
   const last = sh.getLastRow();
   if (!cols.length || last < 2) return;
 
@@ -160,7 +192,7 @@ function KNB_normalizeTextColumnsHere(){
     });
     rng.setValues(vals);
   });
-  SpreadsheetApp.getActive().toast('Normalized Assignee/Client/Priority text.', 'Styling', 3);
+  SpreadsheetApp.getActive().toast('Normalized Owner/Assignee/Client/Priority text.', 'Styling', 3);
 }
 
 // Optional: set tab colors for all boards
