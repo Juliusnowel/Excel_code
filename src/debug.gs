@@ -251,3 +251,15 @@ function KNB_applyPriorityDropdownOnSheet_(sh){
   sh.getRange(2, c, rows, 1).setDataValidation(dv);
 }
 
+function KNB_removeLateValidationHere(){
+  const sh = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  if (!idx || !idx['Late or not?']) {
+    SpreadsheetApp.getActive().toast('Header "Late or not?" not found on this sheet.', 'Late Fix', 4);
+    return;
+  }
+  const c = idx['Late or not?'];
+  sh.getRange(2, c, sh.getMaxRows() - 1, 1).clearDataValidations();
+  try { sh.getRange(2, c, sh.getMaxRows() - 1, 1).setNumberFormat('0'); } catch(_){}
+  SpreadsheetApp.getActive().toast('Removed Late/Not? validation on "' + sh.getName() + '"', 'Late Fix', 3);
+}

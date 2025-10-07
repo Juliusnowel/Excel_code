@@ -113,6 +113,175 @@ function KNB_detailsWrite_(rowId, html){
   sh.appendRow([rowId, html]);
 }
 
+// -----------------------
+// LATE column helpers
+// -----------------------
+
+/**
+ * Ensure the "Late or not?" header exists on this sheet.
+ * If missing: append at the end, set header text, hide the column.
+ */
+function KNB_ensureLateColumnHere(sh){
+  if (!sh) return;
+  const hdr = KNB_headerIndex_(sh);
+  // If we already have the header, return its index.
+  if (hdr[KNB_CFG.COL.LATE]) return hdr[KNB_CFG.COL.LATE];
+
+  // Find Status column index (prefer a stable spot right after Status)
+  const statusIdx = hdr[KNB_CFG.COL.STATUS] || 0;
+
+  if (statusIdx) {
+    // Insert a column after the Status column so the LATE column is consistently positioned.
+    sh.insertColumnAfter(statusIdx);
+    const newCol = statusIdx + 1;
+    sh.getRange(1, newCol).setValue(KNB_CFG.COL.LATE);
+    try { sh.hideColumn(sh.getRange(1, newCol)); } catch(_){}
+    return newCol;
+  } else {
+    // Fallback: append to the end (if Status header missing for some reason)
+    const lastCol = Math.max(1, sh.getLastColumn());
+    sh.insertColumnAfter(lastCol);
+    sh.getRange(1, lastCol+1).setValue(KNB_CFG.COL.LATE);
+    try { sh.hideColumn(sh.getRange(1, lastCol+1)); } catch(_){}
+    return lastCol + 1;
+  }
+}
+
+/**
+ * Remove data-validation (dropdown) from "Late or not?" column on a single sheet.
+ * Leaves values intact and sets number format to integer.
+ */
+function KNB_removeLateValidationHere(){
+  const sh = SpreadsheetApp.getActiveSheet();
+  _KNB_stripValidationFromLateColumn_(sh);
+  SpreadsheetApp.getActive().toast('Removed Late/Not? validation on sheet: ' + sh.getName(), 'Late Fix', 3);
+}
+
+/**
+ * Remove data-validation (dropdown) from "Late or not?" column on ALL boards.
+ * Useful if you have multiple sheets/boards.
+ */
+function KNB_removeLateValidation_AllBoards(){
+  const ss = SpreadsheetApp.getActive();
+  const gids = KNB_allGids_ ? KNB_allGids_() : [];
+  // also include any sheet that contains the header even if not in KNB_allGids_
+  const sheets = ss.getSheets();
+
+  let touched = 0;
+  sheets.forEach(sh=>{
+    try {
+      // do it only for sheets that have the header
+      const hdr = KNB_headerIndex_(sh);
+      if (hdr && hdr[KNB_CFG.COL.LATE]) {
+        _KNB_stripValidationFromLateColumn_(sh);
+        touched++;
+      }
+    } catch(e){}
+  });
+
+  SpreadsheetApp.getActive().toast('Removed Late/Not? validation on ' + touched + ' sheets.', 'Late Fix', 3);
+}
+
+/** Internal helper: removes data validation on the LATE column (keeps values). */
+function _KNB_stripValidationFromLateColumn_(sh){
+  if (!sh) return;
+  const idx = KNB_headerIndex_(sh);
+  const cLate = idx && idx[KNB_CFG.COL.LATE];
+  if (!cLate) return;
+
+  // clear validation for full body under header (keep header row)
+  const maxR = Math.max(2, sh.getMaxRows());
+  try {
+    const rng = sh.getRange(2, cLate, maxR - 1, 1);
+    rng.clearDataValidations();            // remove dropdowns
+    rng.setNumberFormat('0');              // format as integer (optional)
+    // if some cells are formulas or ARRAYFORMULA blockers, you can uncomment below to convert to values:
+    // const vals = rng.getValues(); rng.setValues(vals);
+  } catch(e){
+    // ignore but log
+    console.error('stripLateValidation error for sheet ' + sh.getName() + ': ' + e);
+  }
+}
+
+
+/**
+ * Compute day difference equivalent to Day Count formula:
+ * returns (DueDate - Today) in whole days (positive if due in future,
+ * zero if today, negative if overdue).
+ */
+function KNB_dayDiffFromDue_(dueVal){
+  if (!dueVal) return null;
+  try {
+    const MS = 24*60*60*1000;
+    const due = new Date(dueVal);
+    const today = new Date();
+    // normalize to midnight local
+    due.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    // due - today (positive if future, negative if past)
+    return Math.floor((due.getTime() - today.getTime()) / MS);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Core: handle the "Late or not?" logic for a single row when status changes.
+ * - For Approval / Done: freeze Day Count, accumulate negative days to Late.
+ * - For Revision: reset Start=TODAY(), clear Due & Day Count (preserve Late).
+ *
+ * sh: sheet object, row: integer, idx: header map, newStatus: string
+ */
+function KNB_handleLateForStatusChange_(sh, row, idx, newStatus){
+  if (!sh || !row || !idx) return;
+  const cStart = idx[KNB_CFG.COL.START] || 0;
+  const cDue   = idx[KNB_CFG.COL.DUE]   || 0;
+  const cDay   = idx[KNB_CFG.COL.DAYCOUNT] || 0;
+  const cLate  = idx[KNB_CFG.COL.LATE]  || 0;
+  const cEnd   = idx[KNB_CFG.COL.END]   || 0;
+
+  const status = String(newStatus||'').trim();
+
+  // Helper to write date safely
+  const writeDate = (r,c,d) => {
+    if (!c) return;
+    if (!d) { sh.getRange(r,c).clearContent(); return; }
+    sh.getRange(r,c).setValue(d);
+    try { sh.getRange(r,c).setNumberFormat('yyyy-mm-dd'); } catch(_){}
+  };
+
+  if (status === 'For Revision') {
+    // Reset cycle: Start = Today; clear Due & Day Count; keep Late
+    if (cStart) writeDate(row, cStart, new Date());
+    if (cDue) sh.getRange(row, cDue).clearContent();
+    if (cDay) sh.getRange(row, cDay).clearContent();
+    return;
+  }
+
+  // For Approval and Done: stamp Day Count and accumulate Late if negative
+  if (status === 'For Approval' || status === 'Done') {
+    // compute day diff consistent with Day Count formula
+    const dueVal = cDue ? sh.getRange(row, cDue).getValue() : null;
+    const diff = KNB_dayDiffFromDue_(dueVal); // due - today
+    if (cDay){
+      if (diff === null) sh.getRange(row, cDay).clearContent();
+      else sh.getRange(row, cDay).setValue(diff); // stamp numeric value
+    }
+
+    // If overdue (diff < 0), add the negative number to Late or set if empty
+    if (diff !== null && Number(diff) < 0 && cLate) {
+      let cur = parseFloat(sh.getRange(row, cLate).getValue());
+      if (!isFinite(cur)) cur = 0;
+      const newLate = cur + Number(diff); // diff is negative -> cumulative becomes more negative
+      sh.getRange(row, cLate).setValue(newLate);
+    }
+    return;
+  }
+
+  // All other statuses: do nothing (Day Count is handled by ARRAYFORMULA)
+}
+
+
 function KNB_firstEmptyDataRow_(sh) {
   const idx = KNB_headerIndex_(sh);
   // Choose key columns that indicate a real task row

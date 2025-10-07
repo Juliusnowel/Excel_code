@@ -31,12 +31,22 @@ function KNB_moverOnEdit_(e){
       return;
     }
 
-    // If it’s not a routed status (or stays on same board), exit quickly
     if (!willMove){
+      // If the status is a lifecycle event that needs stamping, do it even if row stays on same sheet
+      try {
+        const idx = map;
+        // ensure late column exists
+        KNB_ensureLateColumnHere(sh);
+        // handle For Revision immediately; For Approval/Done stamping also acceptable here
+        if (['For Revision','For Approval','Done'].includes(newStatus)) {
+          KNB_handleLateForStatusChange_(sh, row, idx, newStatus);
+        }
+      } catch(_){}
       KNB_noteRate_();
       SpreadsheetApp.getActive().toast(`Status set to ${newStatus}.`, 'Mover', 2);
       return;
     }
+
 
     // === Show spinner ASAP (then do the work behind it) ===
     KNB_setBusy_(3000);
@@ -69,6 +79,15 @@ function KNB_moverOnEdit_(e){
       e.range.setValue(oldStatus || KNB_CFG.REVERT_FALLBACK);
       return;
     }
+
+    // Stamp Day Count / Late / Revision resets on source row BEFORE moving,
+    // so the moved copy contains the frozen values.
+    try {
+      KNB_ensureLateColumnHere(sh);
+      if (['For Revision','For Approval','Done'].includes(newStatus)){
+        KNB_handleLateForStatusChange_(sh, row, map, newStatus);
+      }
+    } catch(_){}
 
     // Move the row (preserves formats/notes/rich text + hides storage cols)
     KNB_moveRow_(sh, row, destGid);
@@ -199,7 +218,6 @@ function KNB_forceMoveSelected(){
 }
 
 // Core move (preserve values, formats, validation, NOTES, rich text)
-// Core move (preserve values, formats, validation, NOTES, rich text)
 // + ensure & hide Task Details storage columns on both ends
 function KNB_moveRow_(fromSheet, row, destGid){
   const lock = LockService.getDocumentLock();
@@ -212,17 +230,41 @@ function KNB_moveRow_(fromSheet, row, destGid){
     try { KNB_TASK_ensureDetailsColumns_Here(fromSheet); } catch(_){}
     try { KNB_TASK_ensureDetailsColumns_Here(toSheet);   } catch(_){}
 
-    // Make sure destination has enough columns
+    // Ensure the "Late or not?" column exists (and hidden) on both sheets
+    try { KNB_ensureLateColumnHere(fromSheet); } catch(_){}
+    try { KNB_ensureLateColumnHere(toSheet); } catch(_){}
+
+    // Make sure destination has enough columns (to avoid range errors)
     const srcCols = fromSheet.getLastColumn();
     const dstMax  = toSheet.getMaxColumns();
     if (dstMax < srcCols) toSheet.insertColumnsAfter(dstMax, srcCols - dstMax);
 
-    // Copy the entire row with formats/notes/rich text
+    // === smarter copy: map by header name when possible, fallback to same column index ===
     const destRow = Math.max(2, toSheet.getLastRow() + 1);
-    KNB_withRetry_(() =>
-      fromSheet.getRange(row, 1, 1, srcCols)
-        .copyTo(toSheet.getRange(destRow, 1, 1, srcCols), { contentsOnly:false }),
-      4, 'copyTo row');
+
+    // Build header maps (name -> col) and reverse source lookup (col -> name)
+    const srcHdr = KNB_headerIndex_CACHED_(fromSheet) || {};
+    const dstHdr = KNB_headerIndex_CACHED_(toSheet) || {};
+    const reverseSrc = [];
+    Object.keys(srcHdr).forEach(h => { reverseSrc[srcHdr[h]] = h; });
+
+    // Copy each source column cell to matching destination column:
+    //  - if header exists in source and destination, copy to destination's column for that header
+    //  - otherwise, copy to same numeric column index on destination (fallback)
+    for (let c = 1; c <= srcCols; c++){
+      try {
+        const headerName = reverseSrc[c] || '';
+        const destCol = (headerName && dstHdr[headerName]) ? dstHdr[headerName] : c;
+        // ensure destination has that column (we made sure dstMax >= srcCols above)
+        const srcRange = fromSheet.getRange(row, c, 1, 1);
+        const dstRange = toSheet.getRange(destRow, destCol, 1, 1);
+        // copy everything for that cell (formats, rich text, notes)
+        srcRange.copyTo(dstRange, { contentsOnly: false });
+      } catch (errCell) {
+        // continue copying other cells even if one cell copy fails
+        try { Logger.log('Copy cell failed col=' + c + ' -> ' + (reverseSrc[c] || c) + ' : ' + (errCell && errCell.message || errCell)); } catch(_){}
+      }
+    }
 
     // Preserve row height, then remove source
     try { KNB_withRetry_(() => toSheet.setRowHeight(destRow, fromSheet.getRowHeight(row)), 3, 'setRowHeight'); } catch(_){}
@@ -239,6 +281,7 @@ function KNB_moveRow_(fromSheet, row, destGid){
 
     // Re-hide storage columns on destination in case copy made them visible
     try { KNB_TASK_ensureDetailsColumns_Here(toSheet); } catch(_){}
+
   } finally {
     try { lock.releaseLock(); } catch(_){}
   }
