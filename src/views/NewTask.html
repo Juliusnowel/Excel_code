@@ -149,7 +149,14 @@
 
         google.script.run
           .withSuccessHandler(function(msg){ showOk(msg||'Task added.'); setTimeout(function(){ google.script.host.close(); }, 900); })
-          .withFailureHandler(function(e){ var m=(e&&e.message)?e.message:String(e); showErr('Server error: '+m); setDisabled(false); })
+          .withFailureHandler(function(e){
+            var m=(e&&e.message)?e.message:String(e);
+            // if (/denied|forbidden|permission/i.test(m)) {
+            //   m = 'Blocked by sheet protection or missing edit rights. Ask an editor to grant you edit access and unprotect the headers/storage columns.';
+            // }
+            showErr('Server error: ' + m);
+            setDisabled(false);
+          })
           .KNB_TASK_add(payload);
 
       }catch(err){ showErr('Client error: ' + (err && err.message ? err.message : String(err))); setDisabled(false); }

@@ -23,27 +23,20 @@ const KNB_RTE = {
 // =========================
 function KNB_RTE_ensureColumns_(field){
   const sh = SpreadsheetApp.getActiveSheet();
-  const idx0 = KNB_headerIndex_(sh);
+  const idx = KNB_headerIndex_(sh);
 
-  if (!idx0[field.label]) throw new Error(`Missing header "${field.label}".`);
-
-  // Insert "<Label> (HTML)" after "<Label>"
-  if (!idx0[field.html]) {
-    sh.insertColumnAfter(idx0[field.label]);
-    sh.getRange(1, idx0[field.label] + 1).setValue(field.html);
+  if (!idx[field.label]) throw new Error(`Missing header "${field.label}".`);
+  if (!idx[field.html] || !idx[field.draft]) {
+    throw new Error(
+      `Missing "${field.html}" and/or "${field.draft}". ` +
+      `Ask an editor to add them immediately after "${field.label}" and keep them hidden.`
+    );
   }
-  // Recompute because columns may shift
-  const idx1 = KNB_headerIndex_(sh);
-  if (!idx1[field.draft]) {
-    sh.insertColumnAfter(idx1[field.html]);
-    sh.getRange(1, idx1[field.html] + 1).setValue(field.draft);
-  }
-
-  // Hide storage columns
-  const idx2 = KNB_headerIndex_(sh);
-  try { sh.hideColumn(sh.getRange(1, idx2[field.html])); } catch(_){}
-  try { sh.hideColumn(sh.getRange(1, idx2[field.draft])); } catch(_){}
+  // Keep hidden
+  try { sh.hideColumn(sh.getRange(1, idx[field.html])); } catch(_){}
+  try { sh.hideColumn(sh.getRange(1, idx[field.draft])); } catch(_){}
 }
+
 
 function KNB_RTE_openEditorForActiveRow(fieldKey){
   const field = KNB_RTE[fieldKey];

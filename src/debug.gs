@@ -1,6 +1,33 @@
 /* =========================
    DEBUG
 ========================= */
+function KNB_DIAG_whoAmI(){
+  const ss = SpreadsheetApp.getActive();
+  const sh = ss.getSheets()[0];
+  return {
+    user: (Session.getActiveUser() && Session.getActiveUser().getEmail()) || '(blank)',
+    file: ss.getName(),
+    onSharedDrive: !!ss.getOwner() ? false : true,
+    sheet: sh.getName(),
+    gid: sh.getSheetId(),
+    editors: ss.getEditors().map(e=>e.getEmail())
+  };
+}
+
+function KNB_DIAG_probeSimpleWrite(){
+  const ss = SpreadsheetApp.getActive();
+  const sh = ss.getSheets().find(x => x.getSheetId() === Number(KNB_CFG.GID.REQUESTED))
+         || ss.getSheets().find(x => x.getName().trim().toLowerCase() === 'requested');
+  if (!sh) throw new Error('No Requested sheet found (by name or gid).');
+
+  const row = Math.max(2, sh.getLastRow()+1);
+  const col = 1; // Column A only
+  const rg  = sh.getRange(row, col);
+  const v   = rg.getValue();        // read
+  rg.setValue(v || 'probe');        // minimal write
+  return {sheet: sh.getName(), row, col, wrote: rg.getValue()};
+}
+
 function KNB_TASK_diagnoseEnvironment_() {
   const s = SpreadsheetApp.getActive();
   const reqGid = Number(KNB_CFG.GID.REQUESTED);

@@ -595,5 +595,3 @@ function KNB_resetDayCount_AllBoards(){
 function KNB_ensureDayCountHere_(){
   try { KNB_applyDayCountHere(); } catch(_){}
 }
-
-

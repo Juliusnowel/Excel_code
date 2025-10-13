@@ -22,6 +22,11 @@ function KNB_TASK_add(p) {
 
 function KNB_TASK_add_(p){
   // --- Destination sheet selection (robust) ---
+  function step(label, fn){
+    try { return fn(); }
+    catch(e){ throw new Error('STEP['+label+'] → ' + (e && e.message || e)); }
+  }
+
   const ss = SpreadsheetApp.getActive();
   const byGid   = ss.getSheets().find(x => x.getSheetId() === Number(KNB_CFG.GID.REQUESTED));
   const byName  = ss.getSheets().find(x => String(x.getName()).trim().toLowerCase() === 'requested');
@@ -35,10 +40,30 @@ function KNB_TASK_add_(p){
     return needCols.every(h => !!idx[h]);
   };
   const byHeaders = ss.getSheets().find(hasAllHeaders);
-  const sh = byGid || byName || byHeaders || ss.getActiveSheet();
+  const sh = byGid || byName;
+  if (!sh) throw new Error('Requested board not found. Configure KNB_CFG.GID.REQUESTED or name a tab "Requested".');
+
 
   // Validate headers on chosen sheet
   const idx = KNB_headerIndex_(sh);
+
+  // assertWritable_(sh);
+
+  // function assertWritable_(sheet){
+  //   // Block if whole sheet is protected
+  //   var prot = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET)[0];
+  //   if (prot && prot.isProtected()) {
+  //     throw new Error('Sheet "'+sheet.getName()+'" is protected. Add yourself as an editor or remove the sheet protection.');
+  //   }
+  //   // Block if header row is protected (we otherwise insert/hide near headers)
+  //   var header = sheet.getRange(1,1,1,Math.max(1,sheet.getLastColumn()));
+  //   var headerProtected = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)
+  //     .some(function(p){ return p.isProtected() && header.intersects(p.getRange()); });
+  //   if (headerProtected) {
+  //     throw new Error('Row 1 is protected on "'+sheet.getName()+'". Unprotect headers or add yourself as an editor to the protection.');
+  //   }
+  // }
+
   const missingCols = needCols.filter(h=>!idx[h]);
   if (missingCols.length) {
     const hdrs = sh.getRange(1,1,1,Math.max(1, sh.getLastColumn())).getDisplayValues()[0];
@@ -50,17 +75,29 @@ function KNB_TASK_add_(p){
   }
 
   // --- Make sure Priority DV includes the latest list (e.g., "Urgent") ---
-  (function ensurePriorityDV_(){
-    const cPrio = idx[KNB_CFG.COL.PRIORITY] || 0;
-    if (!cPrio) return;
-    const rows = Math.max(1, sh.getMaxRows() - 1);
-    const dv = SpreadsheetApp.newDataValidation()
-      .requireValueInList(KNB_CFG.PRIORITIES || [], true)
-      .setAllowInvalid(false)
-      .setHelpText('Choose a Priority')
-      .build();
-    sh.getRange(2, cPrio, rows, 1).setDataValidation(dv);
-  })();
+  // (function ensurePriorityDV_(){
+  //   const cPrio = idx[KNB_CFG.COL.PRIORITY] || 0;
+  //   if (!cPrio) return;
+
+  //   // Guard: detect protection on the Priority column body
+  //   const body = sh.getRange(2, cPrio, Math.max(1, sh.getMaxRows() - 1), 1);
+  //   const protectedBody = sh.getProtections(SpreadsheetApp.ProtectionType.RANGE)
+  //     .some(p => p.isProtected() && body.intersects(p.getRange()));
+
+  //   if (protectedBody) {
+  //     // Don’t attempt DV writes if protected; surface actionable guidance
+  //     throw new Error('Priority column is protected. Remove range protection or add editors to that protection to allow dropdown refresh.');
+  //   }
+
+  //   const dv = SpreadsheetApp.newDataValidation()
+  //     .requireValueInList(KNB_CFG.PRIORITIES || [], true)
+  //     .setAllowInvalid(false)
+  //     .setHelpText('Choose a Priority')
+  //     .build();
+
+  //   body.setDataValidation(dv);
+  // })();
+
 
   // Robust date parsing
   function parseDate_(s){
@@ -94,7 +131,79 @@ function KNB_TASK_add_(p){
 
   // Append row
   const row = Math.max(sh.getLastRow()+1, 2);
-  const set = (name, val)=>{ const c=idx[name]; if(c) sh.getRange(row,c).setValue(val); };
+
+  (function probeWrite_(){
+    const targets = [
+      KNB_CFG.COL.TASK,          
+      KNB_CFG.COL.ASSIGNEE,
+      KNB_CFG.COL.CLIENT,
+      KNB_CFG.COL.DEPARTMENT
+    ].filter(Boolean);
+
+    const first = targets.find(h => idx[h]);
+    if (!first) return; 
+
+    const c = idx[first];
+    const rg = sh.getRange(row, c);
+    const val = rg.getValue();
+    try {
+      rg.setValue(val); 
+    } catch (e) {
+      throw new Error('You do not have edit rights on this sheet or the required columns. Underlying: ' + (e.message || e));
+    }
+  })();
+
+
+  // assertTargetsWritable_(sh, idx, row);
+
+  // function assertTargetsWritable_(sheet, idx, row){
+  //   const targets = [
+  //     KNB_CFG.COL.DEPARTMENT,
+  //     KNB_CFG.COL.OWNER,
+  //     KNB_CFG.COL.ASSIGNEE,
+  //     KNB_CFG.COL.CLIENT,
+  //     KNB_CFG.COL.TASK,
+  //     KNB_CFG.COL.PRIORITY,
+  //     KNB_CFG.COL.CREATED,
+  //     KNB_CFG.COL.START,
+  //     KNB_CFG.COL.DUE,
+  //     KNB_CFG.COL.STATUS,
+  //     'Task Details',            // visible icon cell
+  //     'Task Details (HTML)'      // hidden storage
+  //   ];
+
+  //   const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)
+  //     .filter(p => p.isProtected());
+
+  //   const blocked = [];
+  //   for (const h of targets){
+  //     const c = idx[h]; if (!c) continue;
+  //     const rg = sheet.getRange(row, c, 1, 1);
+  //     if (protections.some(p => rg.intersects(p.getRange()))) blocked.push(h);
+  //   }
+
+  //   if (blocked.length){
+  //     throw new Error(
+  //       'No edit rights on: ' + blocked.join(', ') +
+  //       '. Update “Protected sheets and ranges” on "' + sheet.getName() + '" to include your account as an editor for those columns.'
+  //     );
+  //   }
+  // }
+
+  const set = (headerName, value) => {
+    const c = idx[headerName];
+    if (!c) return;
+    try { sh.getRange(row, c).setValue(value); }
+    catch (e) {
+      const msg = String(e && e.message || e);
+      if (/permission|forbidden|denied/i.test(msg)) {
+        throw new Error('Write blocked at column "' + headerName + '". ' + msg);
+      }
+      throw e;
+    }
+  };
+
+
 
   set(KNB_CFG.COL.DEPARTMENT, p.department);
   set(KNB_CFG.COL.OWNER,      p.owner);
@@ -150,10 +259,26 @@ function KNB_TASK_add_(p){
     throw new Error(`Task Details too large (${html.length} chars). Keep it under ${NOTE_LIMIT.toLocaleString()} characters.`);
   }
 
-  sh.getRange(row, hCol).setValue(html);
-  const cell = sh.getRange(row, dCol);
-  cell.setNote('');
-  cell.setValue(html ? '📝' : '');
+  try {
+    sh.getRange(row, hCol).setValue(html);
+  } catch(e){
+    const m = String(e && e.message || e);
+    if (/permission|forbidden|denied/i.test(m))
+      throw new Error('Write blocked at "Task Details (HTML)". Update the protection to include you. ' + m);
+    throw e;
+  }
+
+  try {
+    const cell = sh.getRange(row, dCol);
+    cell.setNote('');
+    cell.setValue(html ? '📝' : '');
+  } catch(e){
+    const m = String(e && e.message || e);
+    if (/permission|forbidden|denied/i.test(m))
+      throw new Error('Write blocked at "Task Details". Update the protection to include you. ' + m);
+    throw e;
+  }
+
 
   try { KNB_touchStyleHere_(); } catch(_) {}
 
@@ -175,32 +300,18 @@ function KNB_TASK_add_(p){
    - Hides them
 ========================= */
 function KNB_TASK_ensureDetailsColumns_(sh){
-  // Find "Task Details" (must exist)
+  // Validate presence only; no structural mutations at runtime
   const dCol = KNB_findHeaderColumn_(sh, 'Task Details');
-  if (!dCol) throw new Error('Missing header "Task Details" on this sheet.');
-
-  // Ensure "Task Details (HTML)"
-  let hCol = KNB_findHeaderColumn_(sh, 'Task Details (HTML)');
-  if (!hCol) {
-    sh.insertColumnAfter(dCol);
-    sh.getRange(1, dCol + 1).setValue('Task Details (HTML)');
-    hCol = dCol + 1;
+  const hCol = KNB_findHeaderColumn_(sh, 'Task Details (HTML)');
+  const drCol = KNB_findHeaderColumn_(sh, 'Task Details (Draft)');
+  if (!dCol || !hCol || !drCol) {
+    throw new Error('Missing storage columns. An editor must add "Task Details (HTML)" and "Task Details (Draft)" immediately after "Task Details".');
   }
-
-  // Ensure "Task Details (Draft)" (after HTML)
-  let drCol = KNB_findHeaderColumn_(sh, 'Task Details (Draft)');
-  if (!drCol) {
-    // hCol might have moved; re-find it safely
-    hCol = KNB_findHeaderColumn_(sh, 'Task Details (HTML)');
-    sh.insertColumnAfter(hCol);
-    sh.getRange(1, hCol + 1).setValue('Task Details (Draft)');
-    drCol = hCol + 1;
-  }
-
-  // Hide storage columns
+  // Optional: re-hide if someone exposed them
   try { sh.hideColumn(sh.getRange(1, hCol)); } catch(_){}
   try { sh.hideColumn(sh.getRange(1, drCol)); } catch(_){}
 }
+
 
 /* =========================
    Header finder (case-insensitive, trims)
