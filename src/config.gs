@@ -53,7 +53,7 @@ const KNB_CFG = {
   },
 
   // Add this to KNB_CFG (optional seed)
-  ASSIGNEES: ['Jane','Isay','Jake','Julius','Prince','Ellis','Ivan','Ferdinand','Andrew'],
+  ASSIGNEES: ['Jane','Isay','Jake','Julius','Prince','Ellis','Ivan','Ferdinand','Andrew','Ray'],
 
   // Assignee chips (exact cell text)
   ASSIGNEE_COLORS: {
@@ -65,7 +65,8 @@ const KNB_CFG = {
     'Prince':    '#B700FF',
     'Ellis':     '#4C00FF',
     'Ferdinand': '#00FF88',
-    'Andrew':    '#FF9900'
+    'Andrew':    '#FF9900',
+    'Ray':       '#00796B'
   },
   // Status color chips (used only by the optional styling helper)
   STATUS_COLORS: {
@@ -113,27 +114,29 @@ const KNB_NTF_CFG = {
   IDS: {
     'Jane':'1206775761772486677','Isay':'1387359431913902092','Jake':'921388311988273223',
     'Julius':'1420979154441998456','Prince':'1212022069215371264','Ellis':'1409729146355187763',
-    'Ivan':'945666323646656512','Ferdinand':'353470938769260564','Andrew':'1389065637820760196'
+    'Ivan':'945666323646656512','Ferdinand':'353470938769260564','Andrew':'1389065637820760196',
+    'Ray':'1396751676546879628'
   },
   P_SENT_PREFIX: 'KNB_NTF_SENT_',
   DEDUPE_MS: 90 * 1000
 };
 
 // Private views config
-const KNB_PVX_DEST_IDS = {
-  'Jane':      '1Te0Ul4MOglyi44j4eJwsUcjEJLz9krDXKBC0gHWdOeo',
-  'Isay':      '1EwMLS30HCscGLUhC-7nV2-8j235-V2O8ULdi2BAtHfE',
-  'Jake':      '1mtPP1CDgxXbFh7ruYr5iGZcBH82F2GXrTl0VSzlw47E',
-  'Julius':    '1pj7Oz1rCp1KEDpcppHd4vaqRbyJ_QWn1vViJs1M_xm8',
-  'Prince':    '1kRAx8YvgDvXrJCODxgOFdv4ciB6GGItDwE7lQjmKZ-E',
-  'Ellis':     '1p3CzP1Gzi57Q-OcKtJOgs989DTQhKQGoQzy_erXnhsg',
-  'Ivan':      '1lAUQZBnTpyKLI2-N3n4xPpdpZoWUcyldXiisEo0nRkI',
-  'Ferdinand': '1G8SsAQnIZfYO2yAau90I6KihNwfXLO_-kjDr7ibIhiI'
-};
+// const KNB_PVX_DEST_IDS = {
+//   'Jane':      '1Te0Ul4MOglyi44j4eJwsUcjEJLz9krDXKBC0gHWdOeo',
+//   'Isay':      '1EwMLS30HCscGLUhC-7nV2-8j235-V2O8ULdi2BAtHfE',
+//   'Jake':      '1mtPP1CDgxXbFh7ruYr5iGZcBH82F2GXrTl0VSzlw47E',
+//   'Julius':    '1pj7Oz1rCp1KEDpcppHd4vaqRbyJ_QWn1vViJs1M_xm8',
+//   'Prince':    '1kRAx8YvgDvXrJCODxgOFdv4ciB6GGItDwE7lQjmKZ-E',
+//   'Ellis':     '1p3CzP1Gzi57Q-OcKtJOgs989DTQhKQGoQzy_erXnhsg',
+//   'Ivan':      '1lAUQZBnTpyKLI2-N3n4xPpdpZoWUcyldXiisEo0nRkI',
+//   'Ferdinand': '1G8SsAQnIZfYO2yAau90I6KihNwfXLO_-kjDr7ibIhiI',
+//   'Ray':       ''
+// };
 
 // optional roll-ups
 const KNB_PVX_GROUPS = {
-  // 'Andrew (Mgr)': ['Jane','Isay','Jake','Julius','Prince','Ellis','Ivan','Ferdinand']
+  // 'Andrew (Mgr)': ['Jane','Isay','Jake','Julius','Prince','Ellis','Ivan','Ferdinand', 'Ray']
 };
 
 // columns to export to private Overview
