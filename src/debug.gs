@@ -120,14 +120,14 @@ function KNB_TASK_ensureDetailsColumns_Here(sh){
 }
 
 // Run across all boards
-function KNB_TASK_ensureDetailsColumns_AllBoards(){
-  const ss = SpreadsheetApp.getActive();
-  (KNB_allGids_() || []).forEach(gid => {
-    const sh = KNB_sheetById_(gid);
-    if (sh) KNB_TASK_ensureDetailsColumns_Here(sh);
-  });
-  SpreadsheetApp.getActive().toast('Ensured + hid Task Details storage on all boards', '📝', 4);
-}
+// function KNB_TASK_ensureDetailsColumns_AllBoards(){
+//   const ss = SpreadsheetApp.getActive();
+//   (KNB_allGids_() || []).forEach(gid => {
+//     const sh = KNB_sheetById_(gid);
+//     if (sh) KNB_TASK_ensureDetailsColumns_Here(sh);
+//   });
+//   SpreadsheetApp.getActive().toast('Ensured + hid Task Details storage on all boards', '📝', 4);
+// }
 
 /* =========================
    DROPDOWNS / VALIDATION
@@ -203,67 +203,67 @@ function KNB_applyAssigneeAndPriority_AllBoards(){
 }
 
 // helpers
-function KNB_installOwnerColumnAll(){
-  KNB_allGids_().forEach(gid=>{
-    const sh = KNB_sheetById_(gid); if(!sh) return;
-    const idx = KNB_headerIndex_(sh);
-    if (idx[KNB_CFG.COL.OWNER]) return;              
-    const cAss = idx[KNB_CFG.COL.ASSIGNEE] || 0;
-    const cDept= idx[KNB_CFG.COL.DEPARTMENT] || 0;
-    const insertAt = cAss ? cAss : (cDept ? cDept+1 : 2);
-    sh.insertColumnBefore(insertAt);
-    sh.getRange(1, insertAt).setValue(KNB_CFG.COL.OWNER);
-  });
-  SpreadsheetApp.getActive().toast('Owner column installed portfolio-wide.', 'Setup', 4);
-}
+// function KNB_installOwnerColumnAll(){
+//   KNB_allGids_().forEach(gid=>{
+//     const sh = KNB_sheetById_(gid); if(!sh) return;
+//     const idx = KNB_headerIndex_(sh);
+//     if (idx[KNB_CFG.COL.OWNER]) return;              
+//     const cAss = idx[KNB_CFG.COL.ASSIGNEE] || 0;
+//     const cDept= idx[KNB_CFG.COL.DEPARTMENT] || 0;
+//     const insertAt = cAss ? cAss : (cDept ? cDept+1 : 2);
+//     sh.insertColumnBefore(insertAt);
+//     sh.getRange(1, insertAt).setValue(KNB_CFG.COL.OWNER);
+//   });
+//   SpreadsheetApp.getActive().toast('Owner column installed portfolio-wide.', 'Setup', 4);
+// }
 
-function KNB_applyOwnerDropdown_AllBoards(){
-  (KNB_allGids_() || []).forEach(gid=>{
-    const sh = KNB_sheetById_(gid); if(!sh) return;
-    SpreadsheetApp.setActiveSheet(sh);
-    try { KNB_applyOwnerDropdownHere(); } catch(_) {}
-  });
-  SpreadsheetApp.getActive().toast('Owner dropdown applied on all boards.', 'Tasks', 4);
-}
+// function KNB_applyOwnerDropdown_AllBoards(){
+//   (KNB_allGids_() || []).forEach(gid=>{
+//     const sh = KNB_sheetById_(gid); if(!sh) return;
+//     SpreadsheetApp.setActiveSheet(sh);
+//     try { KNB_applyOwnerDropdownHere(); } catch(_) {}
+//   });
+//   SpreadsheetApp.getActive().toast('Owner dropdown applied on all boards.', 'Tasks', 4);
+// }
 
 // Refresh Priority DV + chips on ALL boards
-function KNB_refreshPriority_AllBoards(){
-  (KNB_allGids_() || []).forEach(gid => {
-    const sh = KNB_sheetById_(gid); if (!sh) return;
-    const idx = KNB_headerIndex_(sh);
-    const cPrio = idx[KNB_CFG.COL.PRIORITY]; if (!cPrio) return;
+// function KNB_refreshPriority_AllBoards(){
+//   (KNB_allGids_() || []).forEach(gid => {
+//     const sh = KNB_sheetById_(gid); if (!sh) return;
+//     const idx = KNB_headerIndex_(sh);
+//     const cPrio = idx[KNB_CFG.COL.PRIORITY]; if (!cPrio) return;
 
-    // 1) Re-apply dropdown (now includes 'Urgent')
-    const rows = Math.max(0, sh.getLastRow() - 1);
-    if (rows > 0){
-      const dv = SpreadsheetApp.newDataValidation()
-        .requireValueInList(KNB_CFG.PRIORITIES || [], true)
-        .setAllowInvalid(false)
-        .setHelpText('Choose a Priority')
-        .build();
-      sh.getRange(2, cPrio, rows, 1).setDataValidation(dv);
-    }
+//     // 1) Re-apply dropdown (now includes 'Urgent')
+//     const rows = Math.max(0, sh.getLastRow() - 1);
+//     if (rows > 0){
+//       const dv = SpreadsheetApp.newDataValidation()
+//         .requireValueInList(KNB_CFG.PRIORITIES || [], true)
+//         .setAllowInvalid(false)
+//         .setHelpText('Choose a Priority')
+//         .build();
+//       sh.getRange(2, cPrio, rows, 1).setDataValidation(dv);
+//     }
 
-    // 2) Rebuild ONLY the priority chip rules, keep all other CF rules
-    const rules = sh.getConditionalFormatRules();
-    const keep  = rules.filter(r => !r.getRanges().some(rg => rg.getColumn() === cPrio && rg.getNumColumns() === 1));
+//     // 2) Rebuild ONLY the priority chip rules, keep all other CF rules
+//     const rules = sh.getConditionalFormatRules();
+//     const keep  = rules.filter(r => !r.getRanges().some(rg => rg.getColumn() === cPrio && rg.getNumColumns() === 1));
 
-    const a1 = KNB_colToA1_(cPrio);
-    const range = sh.getRange(2, cPrio, Math.max(1, sh.getLastRow()-1), 1);
-    const prioRules = Object.entries(KNB_CFG.PRIORITY_COLORS || {}).map(([label, bg]) =>
-      SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied(KNB_cfMatch_(a1, label))
-        .setBackground(bg)
-        .setFontColor(KNB_pickTextColor_(bg))
-        .setRanges([range])
-        .build()
-    );
+//     const a1 = KNB_colToA1_(cPrio);
+//     const range = sh.getRange(2, cPrio, Math.max(1, sh.getLastRow()-1), 1);
+//     const prioRules = Object.entries(KNB_CFG.PRIORITY_COLORS || {}).map(([label, bg]) =>
+//       SpreadsheetApp.newConditionalFormatRule()
+//         .whenFormulaSatisfied(KNB_cfMatch_(a1, label))
+//         .setBackground(bg)
+//         .setFontColor(KNB_pickTextColor_(bg))
+//         .setRanges([range])
+//         .build()
+//     );
 
-    sh.setConditionalFormatRules([...keep, ...prioRules]);
-  });
+//     sh.setConditionalFormatRules([...keep, ...prioRules]);
+//   });
 
-  SpreadsheetApp.getActive().toast('Priority dropdowns + chips refreshed (all boards).', 'Tasks', 4);
-}
+//   SpreadsheetApp.getActive().toast('Priority dropdowns + chips refreshed (all boards).', 'Tasks', 4);
+// }
 
 function KNB_applyPriorityDropdownOnSheet_(sh){
   const idx = KNB_headerIndex_(sh);
@@ -278,15 +278,15 @@ function KNB_applyPriorityDropdownOnSheet_(sh){
   sh.getRange(2, c, rows, 1).setDataValidation(dv);
 }
 
-function KNB_removeLateValidationHere(){
-  const sh = SpreadsheetApp.getActiveSheet();
-  const idx = KNB_headerIndex_(sh);
-  if (!idx || !idx['Late or not?']) {
-    SpreadsheetApp.getActive().toast('Header "Late or not?" not found on this sheet.', 'Late Fix', 4);
-    return;
-  }
-  const c = idx['Late or not?'];
-  sh.getRange(2, c, sh.getMaxRows() - 1, 1).clearDataValidations();
-  try { sh.getRange(2, c, sh.getMaxRows() - 1, 1).setNumberFormat('0'); } catch(_){}
-  SpreadsheetApp.getActive().toast('Removed Late/Not? validation on "' + sh.getName() + '"', 'Late Fix', 3);
-}
+// function KNB_removeLateValidationHere(){
+//   const sh = SpreadsheetApp.getActiveSheet();
+//   const idx = KNB_headerIndex_(sh);
+//   if (!idx || !idx['Late or not?']) {
+//     SpreadsheetApp.getActive().toast('Header "Late or not?" not found on this sheet.', 'Late Fix', 4);
+//     return;
+//   }
+//   const c = idx['Late or not?'];
+//   sh.getRange(2, c, sh.getMaxRows() - 1, 1).clearDataValidations();
+//   try { sh.getRange(2, c, sh.getMaxRows() - 1, 1).setNumberFormat('0'); } catch(_){}
+//   SpreadsheetApp.getActive().toast('Removed Late/Not? validation on "' + sh.getName() + '"', 'Late Fix', 3);
+// }

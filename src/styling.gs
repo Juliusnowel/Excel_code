@@ -1,38 +1,38 @@
 /* =========================
    OPTIONAL styling / DV helpers (never changes headers text)
 ========================= */
-function KNB_applyStatusDropdownsAll(){
-  KNB_allGids_().forEach(gid=>{
-    const sh = KNB_sheetById_(gid); if (!sh) return;
-    const idx = KNB_headerIndex_(sh);
-    const col = idx[KNB_CFG.COL.STATUS]; if (!col) return;
+// function KNB_applyStatusDropdownsAll(){
+//   KNB_allGids_().forEach(gid=>{
+//     const sh = KNB_sheetById_(gid); if (!sh) return;
+//     const idx = KNB_headerIndex_(sh);
+//     const col = idx[KNB_CFG.COL.STATUS]; if (!col) return;
 
-    const lastRow = sh.getLastRow();
-    if (lastRow < 2) return;
+//     const lastRow = sh.getLastRow();
+//     if (lastRow < 2) return;
 
-    const rule = SpreadsheetApp.newDataValidation()
-      .requireValueInList(KNB_CFG.STATUSES, true)
-      .setAllowInvalid(false)
-      .setHelpText('Choose a Status')
-      .build();
+//     const rule = SpreadsheetApp.newDataValidation()
+//       .requireValueInList(KNB_CFG.STATUSES, true)
+//       .setAllowInvalid(false)
+//       .setHelpText('Choose a Status')
+//       .build();
 
-    sh.getRange(2, col, lastRow - 1, 1).setDataValidation(rule);
-  });
-}
+//     sh.getRange(2, col, lastRow - 1, 1).setDataValidation(rule);
+//   });
+// }
 
-function KNB_applyDepartmentDropdownHere(){
-  const sh = SpreadsheetApp.getActiveSheet();
-  const idx = KNB_headerIndex_(sh);
-  const col = idx[KNB_CFG.COL.DEPARTMENT]; if (!col) return SpreadsheetApp.getUi().alert('Column "Department" not found.');
-  const lastRow = Math.max(2, sh.getLastRow());
-  const rule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(KNB_CFG.DEPARTMENTS, true)
-    .setAllowInvalid(false)
-    .setHelpText('Choose a Department')
-    .build();
-  sh.getRange(2, col, lastRow-1, 1).setDataValidation(rule);
-  SpreadsheetApp.getActive().toast('Department dropdown applied.', 'Tasks', 3);
-}
+// function KNB_applyDepartmentDropdownHere(){
+//   const sh = SpreadsheetApp.getActiveSheet();
+//   const idx = KNB_headerIndex_(sh);
+//   const col = idx[KNB_CFG.COL.DEPARTMENT]; if (!col) return SpreadsheetApp.getUi().alert('Column "Department" not found.');
+//   const lastRow = Math.max(2, sh.getLastRow());
+//   const rule = SpreadsheetApp.newDataValidation()
+//     .requireValueInList(KNB_CFG.DEPARTMENTS, true)
+//     .setAllowInvalid(false)
+//     .setHelpText('Choose a Department')
+//     .build();
+//   sh.getRange(2, col, lastRow-1, 1).setDataValidation(rule);
+//   SpreadsheetApp.getActive().toast('Department dropdown applied.', 'Tasks', 3);
+// }
 
 // --- CF helper: tolerant, case-insensitive, strips NBSP & weird whitespace
 function KNB_cfMatch_(a1, literal) {
@@ -56,7 +56,6 @@ function KNB_applyOwnerDropdownHere(){
   sh.getRange(2, col, lastRow-1, 1).setDataValidation(rule);
   SpreadsheetApp.getActive().toast('Owner dropdown applied.', 'Tasks', 3);
 }
-
 
 function KNB_ensureStyleHere(){
   const sh = SpreadsheetApp.getActiveSheet();

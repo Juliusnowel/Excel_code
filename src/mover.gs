@@ -33,15 +33,16 @@ function KNB_moverOnEdit_(e){
 
     if (!willMove){
       // If the status is a lifecycle event that needs stamping, do it even if row stays on same sheet
-      try {
-        const idx = map;
-        // ensure late column exists
-        KNB_ensureLateColumnHere(sh);
-        // handle For Revision immediately; For Approval/Done stamping also acceptable here
-        if (['For Revision','For Approval','Done'].includes(newStatus)) {
-          KNB_handleLateForStatusChange_(sh, row, idx, newStatus);
-        }
-      } catch(_){}
+      // try {
+      //   const idx = map;
+      //   // ensure late column exists
+      //   KNB_ensureLateColumnHere(sh);
+      //   // handle For Revision immediately; For Approval/Done stamping also acceptable here
+      //   if (['For Revision','For Approval','Done'].includes(newStatus)) {
+      //     KNB_handleLateForStatusChange_(sh, row, idx, newStatus);
+      //   }
+      // } catch(_){}
+      KNB_manageForApprovalFreeze_(sh, row, map, oldStatus, newStatus); 
       KNB_noteRate_();
       SpreadsheetApp.getActive().toast(`Status set to ${newStatus}.`, 'Mover', 2);
       return;
@@ -80,20 +81,22 @@ function KNB_moverOnEdit_(e){
       return;
     }
 
+    // Freeze/Unfreeze driver for "For Approval"
+    KNB_manageForApprovalFreeze_(sh, row, map, oldStatus, newStatus);
+
     // Stamp Day Count / Late / Revision resets on source row BEFORE moving,
     // so the moved copy contains the frozen values.
-    try {
-      KNB_ensureLateColumnHere(sh);
-      if (['For Revision','For Approval','Done'].includes(newStatus)){
-        KNB_handleLateForStatusChange_(sh, row, map, newStatus);
-      }
-    } catch(_){}
+    // try {
+    //   KNB_ensureLateColumnHere(sh);
+    //   if (['For Revision','For Approval','Done'].includes(newStatus)){
+    //     KNB_handleLateForStatusChange_(sh, row, map, newStatus);
+    //   }
+    // } catch(_){}
 
-    // Move the row (preserves formats/notes/rich text + hides storage cols)
+    // Move the row, then toast
     KNB_moveRow_(sh, row, destGid);
     KNB_noteRate_();
     SpreadsheetApp.getActive().toast('Task moved.', 'Mover', 3);
-
   } catch (err){
     Logger.log(err && err.stack ? err.stack : err);
     SpreadsheetApp.getActive().toast(`Mover error: ${String(err && err.message || err)}`, 'Mover', 8);
@@ -157,24 +160,25 @@ function KNB_gateAllows_(sh, row, idx, newStatus){
 }
 
 // Reconcile (Gated)
-function KNB_reconcileGated(){
-  const ss = SpreadsheetApp.getActive();
-  // Requested -> In Progress if passes gate
-  KNB_eachRow(ss, KNB_CFG.GID.REQUESTED, (sh, r, idx)=>{
-    const st = String(sh.getRange(r, idx[KNB_CFG.COL.STATUS]).getDisplayValue()||'').trim();
-    if (st === 'In Progress' && KNB_gateAllows_(sh, r, idx, 'In Progress')){
-      KNB_moveRow_(sh, r, KNB_CFG.GID.INPROGRESS);
-    }
-  });
-  // In Progress -> For Approval if passes gate
-  KNB_eachRow(ss, KNB_CFG.GID.INPROGRESS, (sh, r, idx)=>{
-    const st = String(sh.getRange(r, idx[KNB_CFG.COL.STATUS]).getDisplayValue()||'').trim();
-    if (st === 'For Approval' && KNB_gateAllows_(sh, r, idx, 'For Approval')){
-      KNB_moveRow_(sh, r, KNB_CFG.GID.FORAPPROVAL);
-    }
-  });
-  SpreadsheetApp.getUi().alert('Reconcile (Gated) complete ✅');
-}
+// function KNB_reconcileGated(){
+//   const ss = SpreadsheetApp.getActive();
+//   // Requested -> In Progress if passes gate
+//   KNB_eachRow(ss, KNB_CFG.GID.REQUESTED, (sh, r, idx)=>{
+//     const st = String(sh.getRange(r, idx[KNB_CFG.COL.STATUS]).getDisplayValue()||'').trim();
+//     if (st === 'In Progress' && KNB_gateAllows_(sh, r, idx, 'In Progress')){
+//       KNB_moveRow_(sh, r, KNB_CFG.GID.INPROGRESS);
+//     }
+//   });
+//   // In Progress -> For Approval if passes gate
+//   KNB_eachRow(ss, KNB_CFG.GID.INPROGRESS, (sh, r, idx)=>{
+//     const st = String(sh.getRange(r, idx[KNB_CFG.COL.STATUS]).getDisplayValue()||'').trim();
+//     if (st === 'For Approval' && KNB_gateAllows_(sh, r, idx, 'For Approval')){
+//       KNB_manageForApprovalFreeze_(sh, r, idx, /*old*/null, /*new*/'For Approval'); // <-- add
+//       KNB_moveRow_(sh, r, KNB_CFG.GID.FORAPPROVAL);
+//     }
+//   });
+//   SpreadsheetApp.getUi().alert('Reconcile (Gated) complete ✅');
+// }
 
 // Reconcile (Strict)
 function KNB_reconcileStrict(){
@@ -189,7 +193,11 @@ function KNB_reconcileStrict(){
     KNB_eachRow(ss, g, (sh, r, idx)=>{
       const st = String(sh.getRange(r, idx[KNB_CFG.COL.STATUS]).getDisplayValue()||'').trim();
       const want = map[st];
-      if (want && want !== g) KNB_moveRow_(sh, r, want);
+      if (want && want !== g) {
+        // keep freeze column consistent even when status was pasted/edited in bulk
+        KNB_manageForApprovalFreeze_(sh, r, idx, /*old*/null, /*new*/st, {forceReconcile:true});
+        KNB_moveRow_(sh, r, want);
+      }
     });
   });
   SpreadsheetApp.getUi().alert('Reconcile (Strict) complete ✅');
@@ -210,9 +218,12 @@ function KNB_forceMoveSelected(){
   };
   for (let i=0;i<rg.getNumRows();i++){
     const row = rg.getRow()+i; if (row<2) continue;
-    const st = String(sh.getRange(row, idx[KNB_CFG.COL.STATUS]).getDisplayValue()||'').trim();
-    const dest = map[st];
-    if (dest && dest !== sh.getSheetId()) KNB_moveRow_(sh, row, dest);
+    const st  = String(sh.getRange(row, idx[KNB_CFG.COL.STATUS]).getDisplayValue()||'').trim();
+    const dest= map[st];
+    if (dest && dest !== sh.getSheetId()) {
+      KNB_manageForApprovalFreeze_(sh, row, idx, /*old*/null, /*new*/st, {forceReconcile:true});
+      KNB_moveRow_(sh, row, dest);
+    }
   }
   SpreadsheetApp.getActive().toast('Force Move complete.', 'Mover', 4);
 }
@@ -231,8 +242,8 @@ function KNB_moveRow_(fromSheet, row, destGid){
     try { KNB_TASK_ensureDetailsColumns_Here(toSheet);   } catch(_){}
 
     // Ensure the "Late or not?" column exists (and hidden) on both sheets
-    try { KNB_ensureLateColumnHere(fromSheet); } catch(_){}
-    try { KNB_ensureLateColumnHere(toSheet); } catch(_){}
+    // try { KNB_ensureLateColumnHere(fromSheet); } catch(_){}
+    // try { KNB_ensureLateColumnHere(toSheet); } catch(_){}
 
     // Make sure destination has enough columns (to avoid range errors)
     const srcCols = fromSheet.getLastColumn();
@@ -294,27 +305,46 @@ function KNB_jumpToLastRowHere(){
   SpreadsheetApp.getActive().toast('Jumped to row '+r, 'Nav', 3);
 }
 
-function KNB_backfillEndDateForDoneHere(){
-  const sh  = SpreadsheetApp.getActiveSheet();
-  const idx = KNB_headerIndex_(sh);
-  const cSts = idx[KNB_CFG.COL.STATUS], cEnd = idx[KNB_CFG.COL.END];
-  if (!cSts || !cEnd) return;
+// function KNB_backfillEndDateForDoneHere(){
+//   const sh  = SpreadsheetApp.getActiveSheet();
+//   const idx = KNB_headerIndex_(sh);
+//   const cSts = idx[KNB_CFG.COL.STATUS], cEnd = idx[KNB_CFG.COL.END];
+//   if (!cSts || !cEnd) return;
 
-  const last = Math.max(2, sh.getLastRow());
-  const sts  = sh.getRange(2, cSts, last-1, 1).getDisplayValues();
-  const ends = sh.getRange(2, cEnd, last-1, 1).getValues();
+//   const last = Math.max(2, sh.getLastRow());
+//   const sts  = sh.getRange(2, cSts, last-1, 1).getDisplayValues();
+//   const ends = sh.getRange(2, cEnd, last-1, 1).getValues();
 
-  const toWrite = [];
-  for (let i=0;i<sts.length;i++){
-    if (String(sts[i][0]||'').trim()==='Done' && !ends[i][0]){
-      toWrite.push([new Date()]);
-    } else {
-      toWrite.push([ends[i][0]]);
+//   const toWrite = [];
+//   for (let i=0;i<sts.length;i++){
+//     if (String(sts[i][0]||'').trim()==='Done' && !ends[i][0]){
+//       toWrite.push([new Date()]);
+//     } else {
+//       toWrite.push([ends[i][0]]);
+//     }
+//   }
+//   if (toWrite.length){
+//     sh.getRange(2, cEnd, toWrite.length, 1).setValues(toWrite);
+//     try { sh.getRange(2, cEnd, toWrite.length, 1).setNumberFormat('yyyy-mm-dd'); } catch(_){}
+//   }
+//   SpreadsheetApp.getActive().toast('Backfilled End Date for Done rows.', 'Done', 3);
+// }
+
+function KNB_manageForApprovalFreeze_(sh, row, map, oldStatus, newStatus, opts){
+  const cFrz = map[KNB_CFG.COL.FREEZE] || 0;
+  if (!cFrz) return;
+
+  const force = opts && opts.forceReconcile === true;
+
+  if (newStatus === 'For Approval'){
+    const cell = sh.getRange(row, cFrz);
+    if (!cell.getValue()){
+      cell.setValue(new Date());
+      try { cell.setNumberFormat('yyyy-mm-dd'); } catch(_){}
     }
+  } else if (force || oldStatus === 'For Approval' || oldStatus == null) {
+    // Batch-safe: clear when leaving For Approval or when old status is unknown
+    sh.getRange(row, cFrz).clearContent();
   }
-  if (toWrite.length){
-    sh.getRange(2, cEnd, toWrite.length, 1).setValues(toWrite);
-    try { sh.getRange(2, cEnd, toWrite.length, 1).setNumberFormat('yyyy-mm-dd'); } catch(_){}
-  }
-  SpreadsheetApp.getActive().toast('Backfilled End Date for Done rows.', 'Done', 3);
 }
+

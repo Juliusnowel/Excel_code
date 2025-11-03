@@ -124,7 +124,7 @@ const KNB_MTE_ICON = KNB_RTE.details.icon; // keeps any external references safe
 function KNB_MTE_openEditorForActiveRow(){ KNB_RTE_openEditorForActiveRow('details'); }
 function KNB_MTE_openEditorForRow_(row){ KNB_RTE_openEditorForRow_(row, KNB_RTE.details); }
 function KNB_MTE_save(row, html){ return KNB_RTE_save(row, html, 'details'); }
-function KNB_MTE_backfillIcons(){ KNB_RTE_backfillIcons('details'); }
+// function KNB_MTE_backfillIcons(){ KNB_RTE_backfillIcons('details'); }
 
 // =========================
 // EVENTS: open editor when user clicks into the icon cell

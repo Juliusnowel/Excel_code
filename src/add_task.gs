@@ -282,12 +282,12 @@ function KNB_TASK_add_(p){
 
   try { KNB_touchStyleHere_(); } catch(_) {}
 
-  try {
-    KNB_applyOwnerDropdownHere();
-    KNB_applyAssigneeDropdownHere();
-    KNB_applyPriorityDropdownHere();
-    KNB_applyClientDropdownHere();
-  } catch(_) {}
+  // try {
+  //   KNB_applyOwnerDropdownHere();
+  //   KNB_applyAssigneeDropdownHere();
+  //   KNB_applyPriorityDropdownHere();
+  //   KNB_applyClientDropdownHere();
+  // } catch(_) {}
 
   SpreadsheetApp.getActive().toast('Task added (Status blank).', 'Tasks', 4);
   return 'Task added to "'+sh.getName()+'" (row '+row+') — Status left blank.';

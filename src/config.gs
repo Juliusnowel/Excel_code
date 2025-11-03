@@ -27,7 +27,8 @@ const KNB_CFG = {
     DELIVERABLE: 'Deliverable',
     SCREENSHOT:  'Screenshot',
     STATUS:      'Status',
-    LATE:        'Late or not?'
+    FREEZE:      'For Approval Date'
+    // LATE:        'Late or not?'
   },
   // Status list and routing map
   STATUSES: ['Requested','In Progress','For Approval','For Revision','Blocked','On Hold','Done'],
