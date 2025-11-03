@@ -49,11 +49,16 @@ function KNB_moverOnEdit_(e){
     }
 
 
-    // === Show spinner ASAP (then do the work behind it) ===
+    // === Signal ASAP via toast; keep it lightweight ===
+    // show toast FIRST to avoid waiting on any other calls
+    SpreadsheetApp.getActive().toast('Please wait…', 'Mover', 3);
+
+    // then set lightweight flags
     KNB_setBusy_(3000);
     KNB_suppressEdits_(1500);
-    KNB_UI_showBusy_('Moving task…', 3500);
-    SpreadsheetApp.flush();
+
+    // DO NOT flush here; it delays toast rendering
+    // SpreadsheetApp.flush();
 
     // Set Start Date cheaply if entering In Progress
     const cStart = map[KNB_CFG.COL.START] || 0;
@@ -99,7 +104,7 @@ function KNB_moverOnEdit_(e){
     SpreadsheetApp.getActive().toast('Task moved.', 'Mover', 3);
   } catch (err){
     Logger.log(err && err.stack ? err.stack : err);
-    SpreadsheetApp.getActive().toast(`Mover error: ${String(err && err.message || err)}`, 'Mover', 8);
+    // SpreadsheetApp.getActive().toast(`Mover error: ${String(err && err.message || err)}`, 'Mover', 8);
   } finally {
     // Optional: the busy modal auto-closes; keep this only if you want a hard close.
     // try { KNB_UI_closeBusy_(); } catch(_){}

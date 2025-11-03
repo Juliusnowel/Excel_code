@@ -363,8 +363,22 @@ function KNB_UI_showBusy_(msg, autoMs){
       '</script>' +
     '</body></html>'
   ).setWidth(320).setHeight(90);
-  SpreadsheetApp.getUi().showModalDialog(html, 'Please wait…');
+  // SpreadsheetApp.getUi().showModalDialog(html, 'Please wait…');
 }
+
+// function KNB_UI_showBusy_Modeless_(msg, autoMs){
+//   var ms = Number(autoMs || 2500);
+//   var html = HtmlService.createHtmlOutput(
+//     '<!doctype html><html><body style="margin:0;font:14px system-ui">' +
+//     '<div style="padding:10px;display:flex;gap:8px;align-items:center">' +
+//     '<div style="width:14px;height:14px;border:2px solid #cbd5e1;border-top-color:#111827;border-radius:50%;animation:spin 1s linear infinite"></div>' +
+//     '<div>'+ (msg || 'Working…') +'</div></div>' +
+//     '<style>@keyframes spin{to{transform:rotate(360deg)}}</style>' +
+//     '<script>(function(){var ms='+ms+';if(ms>0){setTimeout(function(){google.script.host.close()},ms);}})();</script>' +
+//     '</body></html>'
+//   ).setWidth(260).setHeight(70);
+//   SpreadsheetApp.getUi().showModelessDialog(html, '');
+// }
 
 // Optional: explicit closer (kept for manual close if you still call it)
 function KNB_UI_closeBusy_(){
