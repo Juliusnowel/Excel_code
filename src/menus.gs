@@ -87,6 +87,10 @@ function onOpen(){
         // .addItem('Apply Owner Dropdown (All Boards)', 'KNB_applyOwnerDropdown_AllBoards')
         // .addItem('Refresh Priorities (All Boards)', 'KNB_refreshPriority_AllBoards')
         // .addItem('For Approval Date Column','KNB_installForApprovalDateColumn_AllBoards')
+        // .addItem('1', 'KNB_TRIG_reset')
+        // .addItem('2', 'KNB_AUDIT_backfillFreeze')
+        // .addItem('3', 'KNB_resetDayCount_AllBoards')
+        // .addItem('4', 'KNB_SMOKE_freezeOnStatus')
       )
     .addToUi();
 }

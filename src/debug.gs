@@ -290,3 +290,57 @@ function KNB_applyPriorityDropdownOnSheet_(sh){
 //   try { sh.getRange(2, c, sh.getMaxRows() - 1, 1).setNumberFormat('0'); } catch(_){}
 //   SpreadsheetApp.getActive().toast('Removed Late/Not? validation on "' + sh.getName() + '"', 'Late Fix', 3);
 // }
+
+function KNB_TRIG_reset(){
+  // Purge all onEdit handlers in this project
+  ScriptApp.getProjectTriggers().forEach(t=>{
+    const fn = t.getHandlerFunction && t.getHandlerFunction();
+    if (fn && /onedit/i.test(fn)) ScriptApp.deleteTrigger(t);
+  });
+  // Reinstall our single entry point
+  ScriptApp.newTrigger('KNB_onEdit_')
+    .forSpreadsheet(SpreadsheetApp.getActive().getId())
+    .onEdit()
+    .create();
+  SpreadsheetApp.getActive().toast('onEdit trigger reset → KNB_onEdit_.', 'Triggers', 4);
+}
+
+function KNB_AUDIT_backfillFreeze(){
+  (KNB_allGids_() || []).forEach(gid=>{
+    const sh = KNB_sheetById_(gid); if (!sh) return;
+    const idx = KNB_headerIndex_(sh);
+    const cSts = idx[KNB_CFG.COL.STATUS]; if (!cSts) return;
+    const cFrz = KNB_ensureFreezeColumn_(sh, idx);
+
+    const last = Math.max(2, sh.getLastRow());
+    if (last < 2) return;
+
+    const sts = sh.getRange(2, cSts, last-1, 1).getDisplayValues();
+    const frz = sh.getRange(2, cFrz, last-1, 1).getValues();
+
+    let dirty = false;
+    for (let i=0;i<sts.length;i++){
+      if (String(sts[i][0]).trim() === 'For Approval' && !frz[i][0]) {
+        frz[i][0] = new Date();            // stamp once
+        dirty = true;
+      }
+    }
+    if (dirty){
+      sh.getRange(2, cFrz, frz.length, 1).setValues(frz);
+      try { sh.getRange(2, cFrz, frz.length, 1).setNumberFormat('yyyy-mm-dd'); } catch(_){}
+    }
+  });
+  SpreadsheetApp.getActive().toast('Freeze dates backfilled for For Approval rows.', 'SLA', 4);
+}
+
+function KNB_SMOKE_freezeOnStatus(){
+  const sh = SpreadsheetApp.getActiveSheet();
+  const idx = KNB_headerIndex_(sh);
+  const row = SpreadsheetApp.getActiveRange().getRow();
+  const col = idx[KNB_CFG.COL.STATUS];
+  if (!col || row < 2) throw new Error('Select a data row with a Status cell.');
+  const range = sh.getRange(row, col);
+  const oldValue = range.getDisplayValue();
+  range.setValue('For Approval');                
+  KNB_onEdit_({range, value:'For Approval', oldValue}); 
+}

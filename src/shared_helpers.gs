@@ -423,51 +423,6 @@ function KNB_hideRTEStorage_AllBoards(){
   SpreadsheetApp.getActive().toast('Hidden RTE storage columns for Details & Revision Notes.', '🧩', 4);
 }
 
-function KNB_ensureDayCountHere_(){
-  const sh  = SpreadsheetApp.getActiveSheet();
-  const idx = KNB_headerIndex_(sh);
-  const cDay = idx[KNB_CFG.COL.DAYCOUNT];
-  if (!cDay) return;
-
-  // Only set if L2 is empty or not an ARRAYFORMULA
-  const cell = sh.getRange(2, cDay);
-  const f0 = cell.getFormula();
-  const needs = !/^=ARRAYFORMULA\(/i.test(f0 || '');
-  if (!needs) return;
-
-  const f = KNB_dayCountFormulaForSheet_(sh);
-  cell.setFormula(f);
-
-  // Reapply heatmap on this column (same rules you already had)
-  const A1 = n => KNB_colToA1_(n);
-  const cCre = idx[KNB_CFG.COL.CREATED];
-  const cSta = idx[KNB_CFG.COL.START];
-  const cDue = idx[KNB_CFG.COL.DUE];
-  const cEnd = idx[KNB_CFG.COL.END];
-  const cSts = idx[KNB_CFG.COL.STATUS];
-
-  const range = sh.getRange(2, cDay, sh.getMaxRows()-1, 1);
-  const keep = sh.getConditionalFormatRules()
-    .filter(r => !r.getRanges().some(rg => rg.getColumn()==cDay && rg.getNumColumns()==1));
-
-  const red = SpreadsheetApp.newConditionalFormatRule()
-    .setRanges([range])
-    .whenFormulaSatisfied('=AND($'+A1(cSts)+'2<>"Done",$'+A1(cEnd)+'2="",$'+A1(cDue)+'2<>"",'+A1(cDay)+'2<=1)')
-    .setBackground('#ffcccc').build();
-
-  const yellow = SpreadsheetApp.newConditionalFormatRule()
-    .setRanges([range])
-    .whenFormulaSatisfied('=AND($'+A1(cSts)+'2<>"Done",$'+A1(cEnd)+'2="",$'+A1(cDue)+'2<>"",'+A1(cDay)+'2>=2,'+A1(cDay)+'2<=3)')
-    .setBackground('#fff2cc').build();
-
-  const green = SpreadsheetApp.newConditionalFormatRule()
-    .setRanges([range])
-    .whenFormulaSatisfied('=AND($'+A1(cSts)+'2<>"Done",$'+A1(cEnd)+'2="",$'+A1(cDue)+'2<>"",'+A1(cDay)+'2>=4)')
-    .setBackground('#d9ead3').build();
-
-  sh.setConditionalFormatRules([...keep, red, yellow, green]);
-}
-
 
 /** =========================
     DAY COUNT — APPLY / RESET
@@ -634,4 +589,19 @@ function KNB_resetDayCount_AllBoards(){
 /** Backward-compat: keep your auto-ensure on open, but safe (no force). */
 function KNB_ensureDayCountHere_(){
   try { KNB_applyDayCountHere(); } catch(_){}
+}
+
+// Ensure the "For Approval Date" column exists; return its column index.
+function KNB_ensureFreezeColumn_(sh, map){
+  const idx = map || KNB_headerIndex_(sh);
+  let cFrz = idx[KNB_CFG.COL.FREEZE] || 0;
+  if (cFrz) return cFrz;
+
+  const anchor = idx[KNB_CFG.COL.END] || idx[KNB_CFG.COL.DUE] || sh.getLastColumn();
+  sh.insertColumnAfter(anchor);
+  cFrz = anchor + 1;
+  sh.getRange(1, cFrz).setValue(KNB_CFG.COL.FREEZE);
+  try { sh.hideColumn(sh.getRange(1, cFrz)); } catch(_){}
+  if (__KNB_HDR_CACHE && __KNB_HDR_CACHE.map) __KNB_HDR_CACHE.map[sh.getSheetId()] = null;
+  return cFrz;
 }

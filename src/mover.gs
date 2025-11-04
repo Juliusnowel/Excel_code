@@ -336,9 +336,7 @@ function KNB_jumpToLastRowHere(){
 // }
 
 function KNB_manageForApprovalFreeze_(sh, row, map, oldStatus, newStatus, opts){
-  const cFrz = map[KNB_CFG.COL.FREEZE] || 0;
-  if (!cFrz) return;
-
+  const cFrz = KNB_ensureFreezeColumn_(sh, map);
   const force = opts && opts.forceReconcile === true;
 
   if (newStatus === 'For Approval'){
@@ -347,9 +345,13 @@ function KNB_manageForApprovalFreeze_(sh, row, map, oldStatus, newStatus, opts){
       cell.setValue(new Date());
       try { cell.setNumberFormat('yyyy-mm-dd'); } catch(_){}
     }
-  } else if (force || oldStatus === 'For Approval' || oldStatus == null) {
-    // Batch-safe: clear when leaving For Approval or when old status is unknown
+    return;
+  }
+
+  if (force || oldStatus === 'For Approval' || oldStatus == null){
     sh.getRange(row, cFrz).clearContent();
   }
 }
+
+
 
