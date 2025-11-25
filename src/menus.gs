@@ -5,7 +5,7 @@ function KNB_RVN_openForActiveRow(){ KNB_RTE_openEditorForActiveRow('revision');
 function KNB_RVN_backfillIcons(){ KNB_RTE_backfillIcons('revision'); }
 function KNB_installRTETriggers(){
   // Clean existing installables
-  ScriptApp.getProjectTriggers().forEach(t=>{
+  ScriptApp.getProjectTriggers().forEach(t=> {
     const h = t.getHandlerFunction && t.getHandlerFunction();
     if (h === 'KNB_MTE_onEditOpen_' || h === 'KNB_RTE_onEditOpen_' || h === 'KNB_RTE_onSelectionChange_'){
       ScriptApp.deleteTrigger(t);
@@ -91,6 +91,7 @@ function onOpen(){
         // .addItem('2', 'KNB_AUDIT_backfillFreeze')
         // .addItem('3', 'KNB_resetDayCount_AllBoards')
         // .addItem('4', 'KNB_SMOKE_freezeOnStatus')
+        // .addItem('Refresh Client Name dropdowns (All Boards)', 'KNB_reloadClientNameDropdown_AllBoards') 
       )
     .addToUi();
-}
+  }

@@ -344,3 +344,47 @@ function KNB_SMOKE_freezeOnStatus(){
   range.setValue('For Approval');                
   KNB_onEdit_({range, value:'For Approval', oldValue}); 
 }
+
+/**
+ * Refresh "Client Name" dropdown on all boards
+ * (Request, In Progress, For Approval, Done)
+ * using the list on Lists!A2:A.
+ */
+/**
+ * Refresh "Client Name" dropdown on all boards
+ * using KNB_CFG.CLIENTS from config.js
+ */
+function KNB_reloadClientNameDropdown_AllBoards() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Config
+  const DROPDOWN_COLUMN_LETTER = 'D'; // "Client Name" column
+  const BOARDS = ['Request','In Progress','For Approval','Done'];
+
+  // Build validation rule directly from KNB_CFG.CLIENTS
+  const clientList = KNB_CFG.CLIENTS;          // <--- your config array
+  if (!clientList || !clientList.length) {
+    ui.alert('Error', 'KNB_CFG.CLIENTS is empty – no client list to apply.', ui.ButtonSet.OK);
+    return;
+  }
+
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(clientList, true)      // TRUE = show dropdown
+    .setAllowInvalid(false)
+    .setHelpText('Select a client name from the list.')
+    .build();
+
+  // Apply to all boards
+  BOARDS.forEach(name => {
+    const sheet = ss.getSheetByName(name);
+    if (!sheet) return;
+
+    // Full Client Name column from row 2 down
+    const range = sheet.getRange(`${DROPDOWN_COLUMN_LETTER}2:${DROPDOWN_COLUMN_LETTER}`);
+    range.setDataValidation(rule);
+  });
+
+  ui.alert('Success', 'Client Name dropdowns refreshed from KNB_CFG.CLIENTS on all boards.', ui.ButtonSet.OK);
+}
+
